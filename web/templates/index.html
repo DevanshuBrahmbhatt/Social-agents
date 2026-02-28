@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TweetAgent — AI Twitter Agent</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config={darkMode:'class',theme:{extend:{colors:{brand:'#6366f1'}}}}</script>
+    <style>
+        body { background: #0a0a0a; }
+        .card { background: #111; border: 1px solid #1e1e1e; border-radius: 12px; }
+        .card:hover { border-color: #2a2a2a; }
+        .glow { box-shadow: 0 0 20px rgba(99,102,241,0.15); }
+        .btn-primary { background: #6366f1; transition: all 0.2s; }
+        .btn-primary:hover { background: #4f46e5; transform: translateY(-1px); }
+        .btn-danger { background: #ef4444; transition: all 0.2s; }
+        .btn-danger:hover { background: #dc2626; transform: translateY(-1px); }
+        .btn-secondary { background: #1e1e1e; border: 1px solid #333; transition: all 0.2s; }
+        .btn-secondary:hover { background: #2a2a2a; }
+        input, select, textarea { background: #0a0a0a; border: 1px solid #2a2a2a; color: #e0e0e0; }
+        input:focus, select:focus, textarea:focus { border-color: #6366f1; outline: none; box-shadow: 0 0 0 2px rgba(99,102,241,0.2); }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+        .status-posted { background: #22c55e; }
+        .status-failed { background: #ef4444; }
+        .status-scheduled { background: #eab308; }
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .spinner { border: 2px solid #333; border-top: 2px solid #6366f1; border-radius: 50%; width: 20px; height: 20px; animation: spin 0.8s linear infinite; display: inline-block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .pulse { animation: pulse 2s ease-in-out infinite; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0a0a0a; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+        .tweet-preview { white-space: pre-wrap; line-height: 1.6; }
+        .help-text { font-size: 11px; color: #555; margin-top: 2px; }
+        .step-badge { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; font-size: 10px; font-weight: bold; flex-shrink: 0; }
+        .step-done { background: #22c55e; color: white; }
+        .step-todo { background: #333; color: #888; }
+    </style>
+</head>
+<body class="text-gray-200 min-h-screen">
+
+    <!-- Header -->
+    <nav class="border-b border-gray-800 px-6 py-4">
+        <div class="max-w-5xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 bg-brand rounded-lg flex items-center justify-center text-white font-bold text-sm">T</div>
+                <h1 class="text-xl font-bold text-white">TweetAgent</h1>
+                <span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full">v2</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <div id="headerStatus" class="flex items-center gap-2 text-sm text-gray-500">
+                    {% if agent_running %}
+                    <span class="status-dot status-posted pulse"></span>
+                    <span class="text-green-400">Agent Running</span>
+                    {% if next_run %}
+                    <span class="text-gray-600">· Next: {{ next_run }}</span>
+                    {% endif %}
+                    {% else %}
+                    <span class="status-dot status-failed"></span>
+                    <span>Agent Stopped</span>
+                    {% endif %}
+                </div>
+                <div class="flex items-center gap-2 text-sm border-l border-gray-800 pl-4">
+                    <span class="text-gray-400">@{{ user.twitter_username or 'user' }}</span>
+                    <a href="/auth/logout" class="text-gray-500 hover:text-red-400 transition-colors text-xs">Logout</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-5xl mx-auto px-6 py-8 space-y-6">
+
+        <!-- Setup Progress (shown if keys are missing) -->
+        {% set has_anthropic = user.anthropic_api_key %}
+        {% set has_twitter_dev = user.twitter_access_token %}
+        {% set setup_complete = has_anthropic and has_twitter_dev %}
+        {% if not setup_complete %}
+        <div class="card p-6 border-brand/30 glow fade-in">
+            <h2 class="text-lg font-semibold text-white mb-2">Setup Your Agent</h2>
+            <p class="text-sm text-gray-500 mb-4">Complete these steps to start posting. You bring your own API keys — the agent is free.</p>
+            <div class="flex items-center gap-6">
+                <div class="flex items-center gap-2">
+                    <span class="step-badge {% if has_anthropic %}step-done{% else %}step-todo{% endif %}">1</span>
+                    <span class="text-sm {% if has_anthropic %}text-green-400{% else %}text-gray-500{% endif %}">Anthropic Key</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="step-badge step-{% if user.perplexity_api_key %}done{% else %}todo{% endif %}">2</span>
+                    <span class="text-sm {% if user.perplexity_api_key %}text-green-400{% else %}text-gray-500{% endif %}">Perplexity Key <span class="text-xs text-gray-600">(optional)</span></span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="step-badge {% if has_twitter_dev %}step-done{% else %}step-todo{% endif %}">3</span>
+                    <span class="text-sm {% if has_twitter_dev %}text-green-400{% else %}text-gray-500{% endif %}">Twitter Dev Keys</span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Agent Control Panel -->
+        <div class="card p-6 glow fade-in">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-white">Agent Control</h2>
+                    <p class="text-sm text-gray-500 mt-1">Start or stop the automated posting agent</p>
+                </div>
+                <div id="agentStatusBadge" class="flex items-center gap-2">
+                    {% if agent_running %}
+                    <span class="bg-green-900/30 border border-green-700/30 text-green-400 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2">
+                        <span class="status-dot status-posted pulse"></span>
+                        Running
+                    </span>
+                    {% else %}
+                    <span class="bg-gray-800 border border-gray-700 text-gray-400 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2">
+                        <span class="status-dot status-failed"></span>
+                        Stopped
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <button onclick="startAgent()" id="startBtn"
+                    class="btn-primary text-white px-6 py-2.5 rounded-lg text-sm font-medium flex items-center gap-2 {% if agent_running %}hidden{% endif %}">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><polygon points="5,3 19,10 5,17"/></svg>
+                    Start Agent
+                </button>
+                <button onclick="stopAgent()" id="stopBtn"
+                    class="btn-danger text-white px-6 py-2.5 rounded-lg text-sm font-medium flex items-center gap-2 {% if not agent_running %}hidden{% endif %}">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><rect x="4" y="4" width="12" height="12" rx="1"/></svg>
+                    Stop Agent
+                </button>
+                <span id="agentNextRun" class="text-sm text-gray-500">
+                    {% if agent_running and next_run %}Next post: {{ next_run }}{% endif %}
+                </span>
+            </div>
+            <div id="agentResult" class="mt-3 text-sm hidden"></div>
+        </div>
+
+        <!-- Preview Tweet Section -->
+        <div class="card p-6 fade-in">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-white">Preview & Post</h2>
+                    <p class="text-sm text-gray-500 mt-1">Generate a preview, edit if needed, then post</p>
+                </div>
+                <span id="charCount" class="text-sm text-gray-500 bg-gray-800 px-2 py-1 rounded">0 chars</span>
+            </div>
+
+            <button onclick="generatePreview()" id="genBtn"
+                class="btn-primary text-white px-5 py-2.5 rounded-lg text-sm font-medium flex items-center gap-2 mb-4">
+                <span id="genBtnText">Generate Tweet</span>
+                <span id="genSpinner" class="spinner hidden"></span>
+            </button>
+
+            <div id="previewArea" class="hidden">
+                <div id="storyInfoBox" class="bg-brand/5 border border-brand/20 rounded-lg px-4 py-3 mb-4 hidden">
+                    <p id="storyInfo" class="text-sm text-brand"></p>
+                    <a id="storyLink" href="#" target="_blank" class="text-xs text-gray-500 hover:text-brand mt-1 inline-block">View source →</a>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-sm text-gray-400 mb-2">Post Content</label>
+                    <textarea id="tweetText" rows="12"
+                        class="w-full rounded-lg p-4 text-sm resize-none tweet-preview"
+                        placeholder="Your post will appear here..."></textarea>
+                </div>
+
+                <div id="chartPreview" class="mb-4 hidden">
+                    <label class="block text-sm text-gray-400 mb-2">Chart Attachment</label>
+                    <div class="bg-black/50 rounded-lg p-2 border border-gray-800">
+                        <img id="chartImage" class="rounded-lg w-full max-h-96 object-contain" />
+                    </div>
+                </div>
+
+                <div class="flex gap-3 mt-4">
+                    <button onclick="postNow()" id="postBtn"
+                        class="btn-primary text-white px-6 py-2.5 rounded-lg text-sm font-medium flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+                        Post Now
+                    </button>
+                    <button onclick="generatePreview()" id="regenBtn"
+                        class="btn-secondary text-white px-5 py-2.5 rounded-lg text-sm font-medium">
+                        Regenerate
+                    </button>
+                </div>
+            </div>
+
+            <div id="postResult" class="mt-3 text-sm hidden"></div>
+        </div>
+
+        <!-- Two column layout -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            <!-- Settings -->
+            <div class="card p-6 fade-in">
+                <h2 class="text-lg font-semibold text-white mb-4">Settings</h2>
+                <form id="settingsForm" class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Topics (comma-separated)</label>
+                        <input type="text" name="topics" value="{{ topics_list | join(', ') }}"
+                            class="w-full rounded-lg px-3 py-2 text-sm"
+                            placeholder="AI, funding, dev tools, startups">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm text-gray-400 mb-1">Tweets per day</label>
+                            <select name="tweet_frequency" class="w-full rounded-lg px-3 py-2 text-sm">
+                                {% for i in range(1, 6) %}
+                                <option value="{{ i }}" {% if settings and settings.tweet_frequency == i %}selected{% endif %}>{{ i }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-400 mb-1">Style</label>
+                            <select name="tweet_style" class="w-full rounded-lg px-3 py-2 text-sm">
+                                <option value="founder-focused" {% if settings and settings.tweet_style == 'founder-focused' %}selected{% endif %}>Builder & Startup</option>
+                                <option value="technical" {% if settings and settings.tweet_style == 'technical' %}selected{% endif %}>Technical</option>
+                                <option value="general" {% if settings and settings.tweet_style == 'general' %}selected{% endif %}>General</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm text-gray-400 mb-1">Schedule times</label>
+                            <input type="text" name="schedule_times" value="{{ schedule_times | join(', ') }}"
+                                class="w-full rounded-lg px-3 py-2 text-sm" placeholder="09:00, 12:00">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-400 mb-1">Timezone</label>
+                            <select name="timezone" class="w-full rounded-lg px-3 py-2 text-sm">
+                                <option value="America/Los_Angeles" {% if settings and settings.timezone == 'America/Los_Angeles' %}selected{% endif %}>Pacific (LA)</option>
+                                <option value="America/New_York" {% if settings and settings.timezone == 'America/New_York' %}selected{% endif %}>Eastern (NY)</option>
+                                <option value="America/Chicago" {% if settings and settings.timezone == 'America/Chicago' %}selected{% endif %}>Central</option>
+                                <option value="Europe/London" {% if settings and settings.timezone == 'Europe/London' %}selected{% endif %}>London</option>
+                                <option value="Asia/Kolkata" {% if settings and settings.timezone == 'Asia/Kolkata' %}selected{% endif %}>India (IST)</option>
+                                <option value="UTC" {% if settings and settings.timezone == 'UTC' %}selected{% endif %}>UTC</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-primary text-white px-4 py-2 rounded-lg text-sm font-medium w-full">
+                        Save Settings
+                    </button>
+                </form>
+                <div id="settingsResult" class="mt-2 text-sm hidden"></div>
+            </div>
+
+            <!-- API Keys -->
+            <div class="card p-6 fade-in">
+                <h2 class="text-lg font-semibold text-white mb-4">API Keys</h2>
+                <form id="setupForm" class="space-y-4">
+
+                    <!-- Anthropic -->
+                    <div>
+                        <div class="flex items-center gap-2 mb-1">
+                            <label class="text-sm text-gray-400">Anthropic API Key</label>
+                            {% if user.anthropic_api_key %}<span class="status-dot status-posted" title="Connected"></span>{% endif %}
+                        </div>
+                        <input type="password" name="anthropic_key"
+                            value="{{ user.anthropic_api_key or '' }}"
+                            class="w-full rounded-lg px-3 py-2 text-sm"
+                            placeholder="sk-ant-...">
+                        <p class="help-text">Get yours at <a href="https://console.anthropic.com/settings/keys" target="_blank" class="text-brand hover:underline">console.anthropic.com</a> (~$0.02/day)</p>
+                    </div>
+
+                    <!-- Perplexity -->
+                    <div>
+                        <div class="flex items-center gap-2 mb-1">
+                            <label class="text-sm text-gray-400">Perplexity API Key</label>
+                            <span class="text-xs text-gray-600">(optional, improves quality)</span>
+                            {% if user.perplexity_api_key %}<span class="status-dot status-posted" title="Connected"></span>{% endif %}
+                        </div>
+                        <input type="password" name="perplexity_key"
+                            value="{{ user.perplexity_api_key or '' }}"
+                            class="w-full rounded-lg px-3 py-2 text-sm"
+                            placeholder="pplx-...">
+                        <p class="help-text">Get yours at <a href="https://www.perplexity.ai/settings/api" target="_blank" class="text-brand hover:underline">perplexity.ai/settings/api</a></p>
+                    </div>
+
+                    <!-- Twitter Developer Credentials -->
+                    <div class="border-t border-gray-800 pt-4 mt-4">
+                        <div class="flex items-center gap-2 mb-3">
+                            <label class="text-sm font-medium text-gray-300">Twitter Developer Credentials</label>
+                            {% if user.twitter_access_token %}<span class="status-dot status-posted" title="Connected"></span>{% endif %}
+                        </div>
+                        <p class="text-xs text-gray-500 mb-3">
+                            These let the agent post tweets on your behalf. Get them from
+                            <a href="https://developer.x.com/en/portal/dashboard" target="_blank" class="text-brand hover:underline">developer.x.com</a>:
+                        </p>
+                        <div class="bg-black/40 rounded-lg px-3 py-2 mb-3 text-xs text-gray-500 space-y-1">
+                            <p>1. Create a project + app at developer.x.com</p>
+                            <p>2. Go to <strong class="text-gray-400">Keys and Tokens</strong> tab</p>
+                            <p>3. Generate <strong class="text-gray-400">Consumer Keys</strong> (API Key & Secret)</p>
+                            <p>4. Generate <strong class="text-gray-400">Access Token & Secret</strong> (with Read+Write permissions)</p>
+                            <p>5. Paste all 4 values below</p>
+                        </div>
+
+                        <div class="space-y-3">
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs text-gray-500 mb-1">API Key (Consumer Key)</label>
+                                    <input type="password" name="twitter_api_key"
+                                        value="{{ user.twitter_api_key or '' }}"
+                                        class="w-full rounded-lg px-3 py-2 text-sm"
+                                        placeholder="Consumer key...">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-500 mb-1">API Secret (Consumer Secret)</label>
+                                    <input type="password" name="twitter_api_secret"
+                                        value="{{ user.twitter_api_secret or '' }}"
+                                        class="w-full rounded-lg px-3 py-2 text-sm"
+                                        placeholder="Consumer secret...">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs text-gray-500 mb-1">Access Token</label>
+                                    <input type="password" name="twitter_access_token"
+                                        value="{{ user.twitter_access_token or '' }}"
+                                        class="w-full rounded-lg px-3 py-2 text-sm"
+                                        placeholder="Access token...">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-500 mb-1">Access Token Secret</label>
+                                    <input type="password" name="twitter_access_token_secret"
+                                        value="{{ user.twitter_access_token_secret or '' }}"
+                                        class="w-full rounded-lg px-3 py-2 text-sm"
+                                        placeholder="Access token secret...">
+                                </div>
+                            </div>
+                        </div>
+                        <p class="help-text mt-2">Free tier allows 1,500 tweets/month. Make sure app has Read+Write permissions.</p>
+                    </div>
+
+                    <button type="submit" class="btn-primary text-white px-4 py-2 rounded-lg text-sm font-medium w-full">
+                        Save API Keys
+                    </button>
+                </form>
+                <div id="setupResult" class="mt-2 text-sm hidden"></div>
+            </div>
+        </div>
+
+        <!-- Tweet History -->
+        <div class="card p-6 fade-in">
+            <h2 class="text-lg font-semibold text-white mb-4">Tweet History</h2>
+            <div class="space-y-3" id="historyList">
+                {% if tweets %}
+                {% for tweet in tweets %}
+                <div class="bg-black/30 rounded-lg p-4 border border-gray-800/50">
+                    <div class="flex items-start justify-between">
+                        <p class="text-sm text-gray-300 flex-1 tweet-preview">{{ tweet.tweet_text[:500] }}{% if tweet.tweet_text|length > 500 %}...{% endif %}</p>
+                        <span class="status-dot status-{{ tweet.status }} ml-3 mt-1 flex-shrink-0" title="{{ tweet.status }}"></span>
+                    </div>
+                    <div class="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                        {% if tweet.posted_at %}
+                        <span>{{ tweet.posted_at.strftime('%b %d, %Y %I:%M %p') }}</span>
+                        {% endif %}
+                        {% if tweet.tweet_text|length > 280 %}
+                        <span class="text-brand">{{ tweet.tweet_text|length }} chars</span>
+                        {% endif %}
+                        {% if tweet.tweet_id %}
+                        <a href="https://x.com/i/status/{{ tweet.tweet_id }}" target="_blank"
+                            class="text-brand hover:underline">View on X →</a>
+                        {% endif %}
+                        {% if tweet.story_url %}
+                        <a href="{{ tweet.story_url }}" target="_blank"
+                            class="text-gray-400 hover:underline">Source →</a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <p class="text-sm text-gray-500">No tweets posted yet. Generate your first one above!</p>
+                {% endif %}
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="border-t border-gray-800 mt-12 py-6 text-center text-xs text-gray-600">
+        TweetAgent v2 — AI-powered Twitter automation for builders & startups
+    </footer>
+
+    <script>
+        let currentChartUrl = '';
+
+        // ----- Agent Start / Stop -----
+        async function startAgent() {
+            const btn = document.getElementById('startBtn');
+            btn.textContent = 'Starting...';
+            btn.disabled = true;
+            try {
+                const resp = await fetch('/api/agent/start', { method: 'POST' });
+                const data = await resp.json();
+                if (resp.status === 401) { window.location = '/login'; return; }
+                if (data.error) {
+                    showResult('agentResult', data.error, false);
+                } else {
+                    showResult('agentResult', data.message, true);
+                    document.getElementById('startBtn').classList.add('hidden');
+                    document.getElementById('stopBtn').classList.remove('hidden');
+                    document.getElementById('agentNextRun').textContent = data.next_run ? `Next post: ${data.next_run}` : '';
+                    updateHeaderStatus(true, data.next_run);
+                    updateAgentBadge(true);
+                }
+            } catch (e) {
+                showResult('agentResult', 'Failed: ' + e.message, false);
+            } finally {
+                btn.innerHTML = `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><polygon points="5,3 19,10 5,17"/></svg> Start Agent`;
+                btn.disabled = false;
+            }
+        }
+
+        async function stopAgent() {
+            const btn = document.getElementById('stopBtn');
+            btn.textContent = 'Stopping...';
+            btn.disabled = true;
+            try {
+                const resp = await fetch('/api/agent/stop', { method: 'POST' });
+                const data = await resp.json();
+                if (resp.status === 401) { window.location = '/login'; return; }
+                if (data.error) {
+                    showResult('agentResult', data.error, false);
+                } else {
+                    showResult('agentResult', data.message, true);
+                    document.getElementById('stopBtn').classList.add('hidden');
+                    document.getElementById('startBtn').classList.remove('hidden');
+                    document.getElementById('agentNextRun').textContent = '';
+                    updateHeaderStatus(false);
+                    updateAgentBadge(false);
+                }
+            } catch (e) {
+                showResult('agentResult', 'Failed: ' + e.message, false);
+            } finally {
+                btn.innerHTML = `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><rect x="4" y="4" width="12" height="12" rx="1"/></svg> Stop Agent`;
+                btn.disabled = false;
+            }
+        }
+
+        function updateHeaderStatus(running, nextRun) {
+            const el = document.getElementById('headerStatus');
+            if (running) {
+                el.innerHTML = `<span class="status-dot status-posted pulse"></span><span class="text-green-400">Agent Running</span>${nextRun ? `<span class="text-gray-600">· Next: ${nextRun}</span>` : ''}`;
+            } else {
+                el.innerHTML = `<span class="status-dot status-failed"></span><span>Agent Stopped</span>`;
+            }
+        }
+
+        function updateAgentBadge(running) {
+            const el = document.getElementById('agentStatusBadge');
+            if (running) {
+                el.innerHTML = `<span class="bg-green-900/30 border border-green-700/30 text-green-400 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2"><span class="status-dot status-posted pulse"></span>Running</span>`;
+            } else {
+                el.innerHTML = `<span class="bg-gray-800 border border-gray-700 text-gray-400 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2"><span class="status-dot status-failed"></span>Stopped</span>`;
+            }
+        }
+
+        // ----- Generate Preview -----
+        async function generatePreview() {
+            const btn = document.getElementById('genBtn');
+            const spinner = document.getElementById('genSpinner');
+            const btnText = document.getElementById('genBtnText');
+            btnText.textContent = 'Generating...';
+            spinner.classList.remove('hidden');
+            btn.disabled = true;
+            try {
+                const resp = await fetch('/api/generate-preview', { method: 'POST' });
+                if (resp.status === 401) { window.location = '/login'; return; }
+                const data = await resp.json();
+                if (data.error) { showResult('postResult', data.error, false); return; }
+
+                document.getElementById('tweetText').value = data.tweet;
+                document.getElementById('charCount').textContent = `${data.chars} chars`;
+                document.getElementById('previewArea').classList.remove('hidden');
+
+                if (data.story_title) {
+                    document.getElementById('storyInfo').textContent = `Source: ${data.story_title}`;
+                    document.getElementById('storyInfoBox').classList.remove('hidden');
+                    if (data.story_url) {
+                        document.getElementById('storyLink').href = data.story_url;
+                        document.getElementById('storyLink').classList.remove('hidden');
+                    }
+                }
+
+                if (data.chart_url) {
+                    document.getElementById('chartImage').src = data.chart_url;
+                    document.getElementById('chartPreview').classList.remove('hidden');
+                    currentChartUrl = data.chart_url;
+                } else {
+                    document.getElementById('chartPreview').classList.add('hidden');
+                    currentChartUrl = '';
+                }
+            } catch (e) {
+                showResult('postResult', 'Generation failed: ' + e.message, false);
+            } finally {
+                btnText.textContent = 'Generate Tweet';
+                spinner.classList.add('hidden');
+                btn.disabled = false;
+            }
+        }
+
+        // ----- Post Now -----
+        async function postNow() {
+            const tweet = document.getElementById('tweetText').value;
+            if (!tweet) return;
+            const postBtn = document.getElementById('postBtn');
+            postBtn.textContent = 'Posting...';
+            postBtn.disabled = true;
+            try {
+                const formData = new FormData();
+                formData.append('tweet_text', tweet);
+                formData.append('chart_url', currentChartUrl);
+                const resp = await fetch('/api/post-now', { method: 'POST', body: formData });
+                if (resp.status === 401) { window.location = '/login'; return; }
+                const data = await resp.json();
+                if (data.error) {
+                    showResult('postResult', data.error, false);
+                } else {
+                    showResult('postResult', `Tweet posted! ID: ${data.tweet_id}`, true);
+                    setTimeout(() => location.reload(), 2000);
+                }
+            } catch (e) {
+                showResult('postResult', 'Post failed: ' + e.message, false);
+            } finally {
+                postBtn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg> Post Now`;
+                postBtn.disabled = false;
+            }
+        }
+
+        // Update char count on edit
+        document.getElementById('tweetText')?.addEventListener('input', function() {
+            document.getElementById('charCount').textContent = `${this.value.length} chars`;
+        });
+
+        // Settings form
+        document.getElementById('settingsForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            try {
+                const resp = await fetch('/api/settings', { method: 'POST', body: formData });
+                if (resp.status === 401) { window.location = '/login'; return; }
+                const data = await resp.json();
+                showResult('settingsResult', data.message || data.error, !data.error);
+            } catch (e) {
+                showResult('settingsResult', 'Failed: ' + e.message, false);
+            }
+        });
+
+        // Setup form (API keys)
+        document.getElementById('setupForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            try {
+                const resp = await fetch('/api/setup', { method: 'POST', body: formData });
+                if (resp.status === 401) { window.location = '/login'; return; }
+                const data = await resp.json();
+                showResult('setupResult', data.message || data.error, !data.error);
+                if (!data.error) { setTimeout(() => location.reload(), 1500); }
+            } catch (e) {
+                showResult('setupResult', 'Failed: ' + e.message, false);
+            }
+        });
+
+        function showResult(id, message, success) {
+            const el = document.getElementById(id);
+            el.textContent = message;
+            el.className = `mt-3 text-sm ${success ? 'text-green-400' : 'text-red-400'}`;
+            el.classList.remove('hidden');
+            setTimeout(() => el.classList.add('hidden'), 5000);
+        }
+    </script>
+</body>
+</html>

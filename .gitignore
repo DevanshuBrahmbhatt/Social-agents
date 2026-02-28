@@ -1,0 +1,9 @@
+.env
+__pycache__/
+*.pyc
+cron.log
+.venv/
+db.sqlite3
+charts/
+.claude/
+.playwright-mcp/

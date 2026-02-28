@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TweetAgent — Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config={darkMode:'class',theme:{extend:{colors:{brand:'#6366f1'}}}}</script>
+    <style>
+        body { background: #0a0a0a; }
+        .card { background: #111; border: 1px solid #1e1e1e; border-radius: 12px; }
+        .btn-primary { background: #6366f1; transition: all 0.2s; }
+        .btn-primary:hover { background: #4f46e5; transform: translateY(-1px); }
+        .btn-twitter { background: #000; border: 1px solid #333; transition: all 0.2s; }
+        .btn-twitter:hover { background: #111; border-color: #555; transform: translateY(-1px); }
+        input { background: #0a0a0a; border: 1px solid #2a2a2a; color: #e0e0e0; }
+        input:focus { border-color: #6366f1; outline: none; box-shadow: 0 0 0 2px rgba(99,102,241,0.2); }
+        .fade-in { animation: fadeIn 0.4s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="text-gray-200 min-h-screen flex items-center justify-center">
+    <div class="w-full max-w-md px-6 fade-in">
+
+        <!-- Logo -->
+        <div class="text-center mb-8">
+            <div class="w-14 h-14 bg-brand rounded-xl flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4">T</div>
+            <h1 class="text-3xl font-bold text-white">TweetAgent</h1>
+            <p class="text-sm text-gray-500 mt-2">AI-powered tweet automation for builders & startups</p>
+            <p class="text-xs text-gray-600 mt-1">Bring your own API keys. Zero cost to start.</p>
+        </div>
+
+        <!-- Error -->
+        {% if error %}
+        <div class="bg-red-900/20 border border-red-800/30 rounded-lg px-4 py-3 mb-4 text-sm text-red-400">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <!-- Login Card -->
+        <div class="card p-8">
+            <h2 class="text-lg font-semibold text-white mb-2 text-center">Get Started</h2>
+            <p class="text-sm text-gray-500 mb-6 text-center">Login with your Twitter account to start automating your tweets</p>
+
+            <!-- Login with Twitter -->
+            <a href="/auth/twitter"
+                class="btn-twitter text-white px-5 py-3 rounded-lg text-sm font-medium flex items-center justify-center gap-3 w-full">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                </svg>
+                Login with Twitter / X
+            </a>
+
+            <!-- Divider -->
+            <div class="flex items-center gap-3 my-6">
+                <div class="flex-1 border-t border-gray-800"></div>
+                <span class="text-xs text-gray-600">or</span>
+                <div class="flex-1 border-t border-gray-800"></div>
+            </div>
+
+            <!-- Owner Login -->
+            <a href="/auth/owner-login"
+                class="text-sm text-gray-500 hover:text-brand transition-colors block text-center">
+                Login as owner (local dev)
+            </a>
+        </div>
+
+        <!-- How it works -->
+        <div class="mt-8 space-y-3">
+            <h3 class="text-sm font-medium text-gray-400 text-center mb-4">How it works</h3>
+            <div class="flex items-start gap-3">
+                <div class="w-6 h-6 bg-brand/20 rounded-full flex items-center justify-center text-brand text-xs font-bold flex-shrink-0 mt-0.5">1</div>
+                <p class="text-sm text-gray-500">Login with Twitter — this is your identity</p>
+            </div>
+            <div class="flex items-start gap-3">
+                <div class="w-6 h-6 bg-brand/20 rounded-full flex items-center justify-center text-brand text-xs font-bold flex-shrink-0 mt-0.5">2</div>
+                <p class="text-sm text-gray-500">Add your API keys (Anthropic, Perplexity, Twitter developer credentials)</p>
+            </div>
+            <div class="flex items-start gap-3">
+                <div class="w-6 h-6 bg-brand/20 rounded-full flex items-center justify-center text-brand text-xs font-bold flex-shrink-0 mt-0.5">3</div>
+                <p class="text-sm text-gray-500">Configure topics & schedule, then start the agent</p>
+            </div>
+            <div class="flex items-start gap-3">
+                <div class="w-6 h-6 bg-brand/20 rounded-full flex items-center justify-center text-brand text-xs font-bold flex-shrink-0 mt-0.5">4</div>
+                <p class="text-sm text-gray-500">The agent posts insightful tweets on your behalf, daily</p>
+            </div>
+        </div>
+
+        <footer class="mt-10 text-center text-xs text-gray-700">
+            TweetAgent v2 — You bring the keys, we bring the agent
+        </footer>
+    </div>
+</body>
+</html>
