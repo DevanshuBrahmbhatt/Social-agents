@@ -187,6 +187,14 @@ Include ALL of the following if available:
 7. Timeline: when did this happen, what's the trajectory
 8. Comparable events: similar moves by competitors, historical parallels
 
+IMPORTANT — TWITTER/X HANDLES:
+9. Provide the official Twitter/X handles (@username) for:
+   - The main company/companies in the story (e.g. @OpenAI, @stripe, @vercel)
+   - The CEO/founder/key people involved (e.g. @sama, @elikishtein, @raaboreal)
+   - Any other relevant people quoted or mentioned
+   Format them clearly like: "Twitter handles: @CompanyName (company), @PersonName (CEO)"
+   This is critical — these handles will be used to @mention them in the post for reach.
+
 Be specific with numbers and data points. This analysis will be used to write an insightful long-form post for builders and startup founders."""
 
         response = pplx.chat.completions.create(

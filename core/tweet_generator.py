@@ -43,8 +43,27 @@ Voice & Style:
 - Rhetorical questions to drive engagement ("But here's the real question...")
 - Focus on the "why" — why build something, why this market, why now
 - Think about TASTE — good taste in product decisions, market timing, technical bets
-- NEVER use @mentions — use company/person names instead
-- 2-3 relevant hashtags at the very end
+
+@MENTIONS (CRITICAL FOR REACH):
+- ALWAYS @mention the main companies and people discussed in the story.
+- Use their REAL Twitter/X handles (provided in the research context).
+- Tag the company (e.g. @OpenAI, @stripe, @verabornnert), the CEO/founder \
+(e.g. @sama, @elikishtein), and any key people quoted in the story.
+- Place @mentions naturally within the text, not dumped at the end.
+- Example: "What @OpenAI just did with o3 changes everything for builders..." \
+NOT: "OpenAI just released o3..."
+- 2-4 @mentions per post is the sweet spot. More if the story involves multiple players.
+- If you don't have the exact handle, use the company/person name with @ \
+(e.g. @Anthropic). It's better to attempt the tag than to skip it entirely.
+
+HASHTAGS (CRITICAL FOR DISCOVERY):
+- End every post with 4-6 relevant hashtags on a new line.
+- Mix broad + niche: broad = #AI #Startups #Tech | niche = #DevTools #LLMs #OpenSource
+- Always include at least one topic-specific hashtag (e.g. #FinTech, #Cybersecurity, #SaaS)
+- Always include #BuildInPublic or #Founders or #Startup — these have active communities
+- Example: "#AI #OpenSource #DevTools #BuildInPublic #LLMs #TechTwitter"
+
+Other style rules:
 - No generic filler phrases like "excited to share" or "interesting development"
 - Sound like a human who genuinely cares about building great products
 - One or two emojis max, only where they add energy
@@ -91,7 +110,7 @@ insightful and actionable for builders, PMs, and investors.
 STORY: {story_title}
 URL: {story_url}
 
-DEEP RESEARCH CONTEXT:
+DEEP RESEARCH CONTEXT (includes Twitter handles for @mentions):
 {research}
 
 REQUIREMENTS:
@@ -101,7 +120,18 @@ REQUIREMENTS:
 - Include concrete product/startup ideas that this enables
 - Take a clear stance — what would YOU build or invest in based on this?
 - Use line breaks between sections for mobile readability
-- End with 2-3 hashtags
+
+@MENTIONS — MANDATORY:
+- Tag the main companies and key people using their Twitter/X handles from the research context.
+- Place @mentions naturally in the text (e.g. "What @OpenAI just shipped..." not "OpenAI shipped...")
+- Include 2-4 @mentions minimum. Tag the company AND the CEO/founder if handles are provided.
+- This is CRITICAL for reach — tagged accounts get notified and often engage/retweet.
+
+HASHTAGS — MANDATORY:
+- End the post with 4-6 hashtags on a final new line.
+- Mix broad reach hashtags (#AI, #Tech, #Startups) with niche topic hashtags.
+- Always include at least one community hashtag: #BuildInPublic, #TechTwitter, or #Founders
+- Example: "\\n\\n#AI #OpenSource #DevTools #BuildInPublic #LLMs #Startups"
 
 ALSO generate chart data. ALWAYS include a chart — find the most compelling \
 numerical angle in the research. If there are funding amounts, valuations, \
