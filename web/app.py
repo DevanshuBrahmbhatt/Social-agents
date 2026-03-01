@@ -112,6 +112,34 @@ async def dashboard(request: Request, current_user: User = Depends(get_current_u
         agent_running = is_user_agent_running(user.id) if user else False
         next_run = get_user_next_run(user.id) if user else None
 
+        # Owner-only: get all users with tweet counts
+        all_users = []
+        if user and user.is_owner:
+            from sqlalchemy import func
+            user_stats = (
+                session.query(
+                    User.id,
+                    User.twitter_username,
+                    User.is_owner,
+                    User.created_at,
+                    func.count(TweetHistory.id).label("tweet_count"),
+                )
+                .outerjoin(TweetHistory, TweetHistory.user_id == User.id)
+                .group_by(User.id)
+                .order_by(User.created_at.asc())
+                .all()
+            )
+            all_users = [
+                {
+                    "id": u.id,
+                    "username": u.twitter_username or "—",
+                    "is_owner": u.is_owner,
+                    "created_at": u.created_at,
+                    "tweet_count": u.tweet_count,
+                }
+                for u in user_stats
+            ]
+
         return templates.TemplateResponse("index.html", {
             "request": request,
             "user": user,
@@ -121,6 +149,7 @@ async def dashboard(request: Request, current_user: User = Depends(get_current_u
             "schedule_times": settings.get_schedule_times() if settings else ["09:00"],
             "agent_running": agent_running,
             "next_run": next_run,
+            "all_users": all_users,
         })
     finally:
         session.close()

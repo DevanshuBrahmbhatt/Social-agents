@@ -600,6 +600,59 @@
                 </div>
             </div>
 
+            <!-- ══ ADMIN: USERS TABLE (owner only) ══ -->
+            {% if user.is_owner and all_users %}
+            <div class="glass fade-up">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
+                    <div>
+                        <h2 class="section-title">Users</h2>
+                        <p class="section-sub">People using TweetAgent &mdash; {{ all_users|length }} total</p>
+                    </div>
+                    <span class="badge badge-brand">Admin</span>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table style="width:100%; border-collapse:collapse; font-size:0.82rem;">
+                        <thead>
+                            <tr style="border-bottom:1px solid var(--border);">
+                                <th style="text-align:left; padding:0.6rem 0.75rem; font-weight:600; color:var(--text-2); font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em;">#</th>
+                                <th style="text-align:left; padding:0.6rem 0.75rem; font-weight:600; color:var(--text-2); font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em;">Twitter Handle</th>
+                                <th style="text-align:center; padding:0.6rem 0.75rem; font-weight:600; color:var(--text-2); font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em;">Tweets</th>
+                                <th style="text-align:left; padding:0.6rem 0.75rem; font-weight:600; color:var(--text-2); font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em;">Joined</th>
+                                <th style="text-align:center; padding:0.6rem 0.75rem; font-weight:600; color:var(--text-2); font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em;">Role</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for u in all_users %}
+                            <tr style="border-bottom:1px solid var(--border); transition:background 0.2s;" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background='transparent'">
+                                <td style="padding:0.65rem 0.75rem; color:var(--text-3);">{{ loop.index }}</td>
+                                <td style="padding:0.65rem 0.75rem;">
+                                    {% if u.username != '—' %}
+                                    <a href="https://x.com/{{ u.username }}" target="_blank" style="color:var(--accent); text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">@{{ u.username }}</a>
+                                    {% else %}
+                                    <span style="color:var(--text-3);">{{ u.username }}</span>
+                                    {% endif %}
+                                </td>
+                                <td style="padding:0.65rem 0.75rem; text-align:center;">
+                                    <span class="badge {% if u.tweet_count > 0 %}badge-green{% else %}badge-gray{% endif %}" style="padding:0.15rem 0.6rem; font-size:0.72rem;">{{ u.tweet_count }}</span>
+                                </td>
+                                <td style="padding:0.65rem 0.75rem; color:var(--text-2); font-size:0.78rem;">
+                                    {% if u.created_at %}{{ u.created_at.strftime('%b %d, %Y') }}{% else %}—{% endif %}
+                                </td>
+                                <td style="padding:0.65rem 0.75rem; text-align:center;">
+                                    {% if u.is_owner %}
+                                    <span class="badge badge-brand" style="padding:0.15rem 0.5rem; font-size:0.65rem;">Owner</span>
+                                    {% else %}
+                                    <span style="font-size:0.75rem; color:var(--text-3);">User</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
             <!-- ══ TWEET HISTORY ══ -->
             <div class="glass fade-up">
                 <h2 class="section-title" style="margin-bottom:1rem;">Tweet History</h2>
