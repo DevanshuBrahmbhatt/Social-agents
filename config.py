@@ -23,7 +23,7 @@ TWITTER_REDIRECT_URI = os.getenv("TWITTER_REDIRECT_URI", "http://localhost:8000/
 LINKEDIN_CLIENT_ID = os.getenv("LINKEDIN_CLIENT_ID", "")
 LINKEDIN_CLIENT_SECRET = os.getenv("LINKEDIN_CLIENT_SECRET", "")
 LINKEDIN_REDIRECT_URI = os.getenv("LINKEDIN_REDIRECT_URI", "http://localhost:8000/auth/linkedin/callback")
-LINKEDIN_API_VERSION = os.getenv("LINKEDIN_API_VERSION", "202501")
+LINKEDIN_API_VERSION = os.getenv("LINKEDIN_API_VERSION", "202401")
 
 # Session security (optional — auto-derived if not set)
 SECRET_KEY = os.getenv("SECRET_KEY", "")

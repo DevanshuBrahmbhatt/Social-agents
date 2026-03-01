@@ -59,13 +59,11 @@ WHAT MAKES IT FEEL HUMAN (anti-AI signals):
 - Surprise and genuine emotion: "Wild." "This floored me." "Did not see this coming."
 - Occasionally admit uncertainty: "Still wrapping my head around this but..."
 
-@MENTIONS (CRITICAL FOR REACH):
-- ALWAYS @mention the main companies and people from the research context.
-- Use their REAL Twitter/X handles. Tag the company AND the CEO/founder.
-- Place @mentions naturally: "What @OpenAI just shipped is wild..." \
-NOT: "OpenAI released a new model..."
-- 2-4 @mentions per post. More if multiple players involved.
-- If unsure of exact handle, use @CompanyName — better to attempt than skip.
+MENTIONS (name-drop, don't @mention):
+- NEVER use @mentions (e.g. @OpenAI). Your Twitter API plan blocks @mentions.
+- Instead, name-drop companies and people naturally: "OpenAI just shipped something wild..." \
+"Sam Altman's move here is bold..."
+- Reference 2-4 companies/people per post by name for context and credibility.
 
 HASHTAGS:
 - End with 4-6 hashtags on a new line.
@@ -126,11 +124,10 @@ REQUIREMENTS:
 - Take a clear stance — what would YOU build or invest in based on this?
 - Use line breaks between sections for mobile readability
 
-@MENTIONS — MANDATORY:
-- Tag the main companies and key people using their Twitter/X handles from the research context.
-- Place @mentions naturally in the text (e.g. "What @OpenAI just shipped..." not "OpenAI shipped...")
-- Include 2-4 @mentions minimum. Tag the company AND the CEO/founder if handles are provided.
-- This is CRITICAL for reach — tagged accounts get notified and often engage/retweet.
+COMPANY/PEOPLE REFERENCES — MANDATORY:
+- Name-drop the main companies and key people naturally (e.g. "OpenAI just shipped..." not "@OpenAI shipped...")
+- NEVER use @mentions (@handle format) — this will cause the post to be REJECTED by the API.
+- Reference 2-4 companies/people by name for credibility and context.
 
 HASHTAGS — MANDATORY:
 - End the post with 4-6 hashtags on a final new line.
