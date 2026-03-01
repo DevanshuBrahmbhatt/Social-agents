@@ -81,46 +81,52 @@ def fetch_techcrunch_stories() -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# Reddit (public JSON API — no auth required)
+# Reddit (RSS feeds — JSON API blocked for bots since 2023)
 # ---------------------------------------------------------------------------
 
 def fetch_reddit_stories() -> list[dict]:
-    """Fetch hot posts from tech subreddits via Reddit's public JSON API."""
+    """Fetch hot posts from tech subreddits via Reddit RSS feeds."""
     stories = []
-    headers = {"User-Agent": config.REDDIT_USER_AGENT}
 
     for subreddit in config.REDDIT_SUBREDDITS:
-        url = f"https://www.reddit.com/r/{subreddit}/hot.json?limit={config.MAX_REDDIT_POSTS}"
+        rss_url = f"https://www.reddit.com/r/{subreddit}/hot.rss?limit={config.MAX_REDDIT_POSTS}"
         try:
-            resp = requests.get(url, headers=headers, timeout=10)
-            resp.raise_for_status()
-            data = resp.json()
+            feed = feedparser.parse(rss_url)
+            count = 0
+            for entry in feed.entries:
+                title = entry.get("title", "")
+                link = entry.get("link", "")
 
-            for post in data.get("data", {}).get("children", []):
-                p = post.get("data", {})
+                # Skip reddit self-links (discussion threads)
+                if not link or "reddit.com/r/" in link:
+                    # Try to extract external URL from content
+                    content = entry.get("content", [{}])
+                    if content and isinstance(content, list):
+                        html = content[0].get("value", "")
+                        # Look for [link] href in the HTML
+                        import re as _re
+                        ext_match = _re.search(r'<a href="(https?://(?!www\.reddit\.com)[^"]+)">\[link\]', html)
+                        if ext_match:
+                            link = ext_match.group(1)
+                        else:
+                            continue  # No external link, skip
 
-                # Skip: low score, stickied, self-posts without real URLs
-                if p.get("score", 0) < config.MIN_REDDIT_SCORE:
-                    continue
-                if p.get("stickied"):
-                    continue
-
-                post_url = p.get("url", "")
-                # Skip self-posts (they link to reddit itself)
-                if post_url.startswith(f"https://www.reddit.com/r/{subreddit}"):
-                    continue
+                summary = entry.get("summary", "")
+                if summary:
+                    summary = re.sub(r"<[^>]+>", "", summary).strip()[:300]
 
                 stories.append({
                     "source": f"reddit-r/{subreddit}",
-                    "title": p.get("title", ""),
-                    "url": post_url,
-                    "score": p.get("score", 0),
-                    "summary": (p.get("selftext") or "")[:300] or None,
+                    "title": title,
+                    "url": link,
+                    "score": None,
+                    "summary": summary or None,
                 })
+                count += 1
 
-            log.info(f"Fetched {len([s for s in stories if f'r/{subreddit}' in s['source']])} Reddit r/{subreddit} stories")
+            log.info(f"Fetched {count} Reddit r/{subreddit} stories via RSS")
         except Exception as e:
-            log.warning(f"Failed to fetch Reddit r/{subreddit}: {e}")
+            log.warning(f"Failed to fetch Reddit r/{subreddit} RSS: {e}")
 
     return stories
 
