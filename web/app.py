@@ -47,6 +47,8 @@ app = FastAPI(title="TweetAgent", lifespan=lifespan)
 
 # Mount charts directory for serving chart images
 app.mount("/charts", StaticFiles(directory=str(config.CHARTS_DIR)), name="charts")
+# Mount static files (logo, etc.)
+app.mount("/static", StaticFiles(directory=str(config.PROJECT_ROOT / "web" / "static")), name="static")
 
 
 # ---------------------------------------------------------------------------
@@ -75,6 +77,12 @@ async def login_page(request: Request):
         "request": request,
         "error": error,
     })
+
+
+@app.get("/privacy", response_class=HTMLResponse)
+async def privacy_page(request: Request):
+    """Public privacy policy page (required by LinkedIn)."""
+    return templates.TemplateResponse("privacy.html", {"request": request})
 
 
 @app.get("/auth/twitter")

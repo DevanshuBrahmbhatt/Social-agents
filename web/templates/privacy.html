@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TweetAgent — Privacy Policy</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --ink: #050505;
+            --surface: rgba(255,255,255,0.03);
+            --border: rgba(255,255,255,0.06);
+            --border-bright: rgba(255,255,255,0.12);
+            --text-1: #f0eee6;
+            --text-2: rgba(240,238,230,0.5);
+            --text-3: rgba(240,238,230,0.25);
+            --accent: #818cf8;
+            --accent-2: #a78bfa;
+        }
+        body {
+            background: var(--ink);
+            color: var(--text-1);
+            font-family: 'DM Sans', system-ui, sans-serif;
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+        .container {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 3rem 1.5rem;
+        }
+        .badge {
+            display: inline-block;
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--accent);
+            background: rgba(129,140,248,0.1);
+            border: 1px solid rgba(129,140,248,0.2);
+            border-radius: 50px;
+            padding: 0.3rem 0.8rem;
+            margin-bottom: 1.2rem;
+        }
+        h1 {
+            font-family: 'Syne', sans-serif;
+            font-weight: 800;
+            font-size: 2.2rem;
+            letter-spacing: -0.03em;
+            line-height: 1.15;
+            margin-bottom: 0.5rem;
+        }
+        .subtitle {
+            color: var(--text-2);
+            font-size: 0.9rem;
+            margin-bottom: 2.5rem;
+        }
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.75rem;
+            margin-bottom: 1.25rem;
+        }
+        .card:hover { border-color: var(--border-bright); }
+        h2 {
+            font-family: 'Syne', sans-serif;
+            font-weight: 700;
+            font-size: 1.05rem;
+            margin-bottom: 0.75rem;
+            letter-spacing: -0.01em;
+        }
+        p, li {
+            font-size: 0.85rem;
+            color: var(--text-2);
+            line-height: 1.7;
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+        ul li {
+            padding-left: 1.2rem;
+            position: relative;
+            margin-bottom: 0.4rem;
+        }
+        ul li::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0.55rem;
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: var(--accent-2);
+        }
+        .highlight {
+            color: var(--text-1);
+            font-weight: 500;
+        }
+        a { color: var(--accent-2); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .footer {
+            text-align: center;
+            color: var(--text-3);
+            font-size: 0.75rem;
+            margin-top: 2.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border);
+        }
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.82rem;
+            color: var(--text-2);
+            margin-bottom: 2rem;
+            transition: color 0.2s;
+        }
+        .back-link:hover { color: var(--text-1); text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/login" class="back-link">&larr; Back to TweetAgent</a>
+
+        <span class="badge">Beta &middot; Student Project</span>
+        <h1>Privacy Policy</h1>
+        <p class="subtitle">Last updated: March 1, 2026</p>
+
+        <div class="card">
+            <h2>About This Project</h2>
+            <p>
+                TweetAgent is a <span class="highlight">beta student project built for educational purposes</span>.
+                It was created as a learning exercise to explore social media automation, API integrations, and
+                full-stack web development. This is <span class="highlight">not a commercial product</span> and is
+                not intended for production use at scale.
+            </p>
+        </div>
+
+        <div class="card">
+            <h2>What We Collect</h2>
+            <p>When you connect your accounts, we store the following data to enable the service:</p>
+            <ul>
+                <li><span class="highlight">OAuth access tokens</span> for Twitter (X) and LinkedIn, used solely to post on your behalf</li>
+                <li>Your <span class="highlight">display name and profile identifier</span> from connected platforms</li>
+                <li><span class="highlight">Content you generate</span> (tweets, LinkedIn posts) and posting history</li>
+                <li><span class="highlight">API keys you provide</span> (Anthropic, Perplexity) to power AI features</li>
+                <li>Basic <span class="highlight">settings and preferences</span> (topics, schedule, timezone)</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>How We Use Your Data</h2>
+            <ul>
+                <li>To <span class="highlight">generate and post content</span> to your connected social media accounts</li>
+                <li>To <span class="highlight">schedule automated posts</span> at your chosen times</li>
+                <li>To <span class="highlight">display your posting history</span> on the dashboard</li>
+            </ul>
+            <p style="margin-top: 0.75rem;">
+                We do <span class="highlight">not</span> sell, share, or transfer your data to any third parties.
+                Your API keys and tokens are stored locally on our server and are never exposed to other users.
+            </p>
+        </div>
+
+        <div class="card">
+            <h2>Third-Party Services</h2>
+            <p>TweetAgent integrates with the following services using your provided credentials:</p>
+            <ul>
+                <li><span class="highlight">Twitter (X) API</span> — for posting tweets and OAuth authentication</li>
+                <li><span class="highlight">LinkedIn API</span> — for posting content and OAuth authentication</li>
+                <li><span class="highlight">Anthropic (Claude)</span> — for AI-powered content generation</li>
+                <li><span class="highlight">Perplexity</span> — for news research and topic analysis</li>
+            </ul>
+            <p style="margin-top: 0.75rem;">
+                Each service has its own privacy policy. We encourage you to review them.
+            </p>
+        </div>
+
+        <div class="card">
+            <h2>Data Storage &amp; Security</h2>
+            <ul>
+                <li>All data is stored in a <span class="highlight">local SQLite database</span> on the server</li>
+                <li>Connections are encrypted via <span class="highlight">HTTPS (TLS)</span></li>
+                <li>OAuth tokens are stored server-side and <span class="highlight">never sent to the browser</span></li>
+                <li>This is a student project — while we take reasonable precautions, we cannot guarantee enterprise-level security</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>Your Rights</h2>
+            <ul>
+                <li>You can <span class="highlight">disconnect</span> your Twitter or LinkedIn account at any time from the dashboard</li>
+                <li>You can <span class="highlight">request deletion</span> of all your data by contacting us</li>
+                <li>You can <span class="highlight">stop automated posting</span> at any time by toggling off the agent</li>
+                <li>Disconnecting an account <span class="highlight">revokes our access</span> to post on your behalf</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>Disclaimer</h2>
+            <p>
+                This project is provided <span class="highlight">"as-is" for educational purposes</span>.
+                It is a beta student project and comes with no warranties or guarantees. Use at your own discretion.
+                The developer is not responsible for any content posted through this tool or any consequences arising from its use.
+            </p>
+        </div>
+
+        <div class="card">
+            <h2>Contact</h2>
+            <p>
+                If you have questions about this privacy policy or want to request data deletion,
+                please reach out via the project's GitHub repository or contact the developer directly.
+            </p>
+        </div>
+
+        <div class="footer">
+            TweetAgent &mdash; A student project for educational purposes &middot; Not a commercial product
+        </div>
+    </div>
+</body>
+</html>
