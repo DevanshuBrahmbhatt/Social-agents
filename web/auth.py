@@ -178,6 +178,11 @@ async def twitter_login_callback(request: Request):
 
     try:
         # Exchange code for access token
+        # Twitter OAuth 2.0 confidential clients require Basic Auth header
+        _basic_auth = base64.b64encode(
+            f"{config.TWITTER_CLIENT_ID}:{config.TWITTER_CLIENT_SECRET}".encode()
+        ).decode()
+
         async with httpx.AsyncClient() as client:
             token_resp = await client.post(
                 "https://api.twitter.com/2/oauth2/token",
@@ -188,7 +193,10 @@ async def twitter_login_callback(request: Request):
                     "redirect_uri": config.TWITTER_REDIRECT_URI,
                     "code_verifier": verifier,
                 },
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                headers={
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "Authorization": f"Basic {_basic_auth}",
+                },
             )
             token_data = token_resp.json()
 
