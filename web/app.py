@@ -20,11 +20,13 @@ from web.scheduler import (
 from web.auth import (
     get_current_user, get_user_id_from_cookie,
     twitter_login_start, twitter_login_callback, owner_login, logout,
+    linkedin_connect_start, linkedin_connect_callback, linkedin_disconnect,
 )
 from core.news_fetcher import fetch_all_stories, deep_research_story
 from core.tweet_generator import pick_best_story, generate_tweet
 from core.chart_generator import generate_chart
 from core.twitter_poster import post_tweet, post_tweet_dry_run
+from core.linkedin_poster import post_linkedin
 
 log = logging.getLogger(__name__)
 templates = Jinja2Templates(directory=str(config.PROJECT_ROOT / "web" / "templates"))
@@ -95,6 +97,21 @@ async def do_logout(request: Request):
     return await logout(request)
 
 
+@app.get("/auth/linkedin")
+async def do_linkedin_connect(request: Request):
+    return await linkedin_connect_start(request)
+
+
+@app.get("/auth/linkedin/callback")
+async def do_linkedin_callback(request: Request):
+    return await linkedin_connect_callback(request)
+
+
+@app.post("/auth/linkedin/disconnect")
+async def do_linkedin_disconnect(request: Request):
+    return await linkedin_disconnect(request)
+
+
 # ---------------------------------------------------------------------------
 # Dashboard
 # ---------------------------------------------------------------------------
@@ -150,6 +167,9 @@ async def dashboard(request: Request, current_user: User = Depends(get_current_u
             "agent_running": agent_running,
             "next_run": next_run,
             "all_users": all_users,
+            "linkedin_connected": bool(user.linkedin_access_token) if user else False,
+            "linkedin_name": user.linkedin_name if user else None,
+            "linkedin_posting_enabled": settings.linkedin_posting_enabled if settings and hasattr(settings, 'linkedin_posting_enabled') else True,
         })
     finally:
         session.close()
@@ -210,6 +230,7 @@ async def save_settings(
     schedule_times: str = Form("09:00"),
     timezone: str = Form("America/Los_Angeles"),
     tweet_style: str = Form("founder-focused"),
+    linkedin_posting_enabled: str = Form("true"),
 ):
     session = SessionLocal()
     try:
@@ -223,6 +244,7 @@ async def save_settings(
         s.set_schedule_times([t.strip() for t in schedule_times.split(",") if t.strip()])
         s.timezone = timezone
         s.tweet_style = tweet_style
+        s.linkedin_posting_enabled = linkedin_posting_enabled.lower() in ("true", "1", "on", "yes")
         session.commit()
 
         # Update scheduler if agent is running
@@ -314,12 +336,15 @@ async def generate_preview(current_user: User = Depends(get_current_user)):
             from pathlib import Path
             chart_url = f"/charts/{Path(chart_path).name}"
 
+        linkedin_post = result.get("linkedin_post", result["tweet"])
         return JSONResponse({
             "tweet": result["tweet"],
+            "linkedin_post": linkedin_post,
             "story_title": result.get("story_title", ""),
             "story_url": result.get("story_url", ""),
             "chart_url": chart_url,
             "chars": len(result["tweet"]),
+            "linkedin_chars": len(linkedin_post),
         })
 
     except Exception as e:
@@ -335,7 +360,9 @@ async def generate_preview(current_user: User = Depends(get_current_user)):
 async def post_now(
     current_user: User = Depends(get_current_user),
     tweet_text: str = Form(""),
+    linkedin_text: str = Form(""),
     chart_url: str = Form(""),
+    post_to_linkedin: str = Form("false"),
 ):
     session = SessionLocal()
     try:
@@ -346,9 +373,6 @@ async def post_now(
         if not tweet_text:
             return JSONResponse({"error": "Tweet text is empty"}, status_code=400)
 
-        if not user.twitter_access_token:
-            return JSONResponse({"error": "Twitter developer credentials not configured"}, status_code=400)
-
         # Convert chart URL to file path
         chart_path = None
         if chart_url:
@@ -356,30 +380,87 @@ async def post_now(
             chart_name = Path(chart_url).name
             chart_path = str(config.CHARTS_DIR / chart_name)
 
-        response = post_tweet(
-            text=tweet_text,
-            image_path=chart_path,
-            api_key=user.twitter_api_key,
-            api_secret=user.twitter_api_secret,
-            access_token=user.twitter_access_token,
-            access_token_secret=user.twitter_access_token_secret,
-        )
+        results = {"twitter": None, "linkedin": None}
 
-        # Save to history
-        history = TweetHistory(
-            user_id=user.id,
-            tweet_text=tweet_text,
-            tweet_id=str(response.data["id"]),
-            chart_path=chart_path,
-            status="posted",
-        )
-        session.add(history)
+        # Post to Twitter (if credentials configured)
+        if user.twitter_access_token:
+            try:
+                response = post_tweet(
+                    text=tweet_text,
+                    image_path=chart_path,
+                    api_key=user.twitter_api_key,
+                    api_secret=user.twitter_api_secret,
+                    access_token=user.twitter_access_token,
+                    access_token_secret=user.twitter_access_token_secret,
+                )
+                tweet_id = str(response.data["id"])
+                results["twitter"] = tweet_id
+
+                # Save Twitter history
+                history = TweetHistory(
+                    user_id=user.id,
+                    tweet_text=tweet_text,
+                    tweet_id=tweet_id,
+                    chart_path=chart_path,
+                    status="posted",
+                    platform="twitter",
+                )
+                session.add(history)
+            except Exception as e:
+                log.error(f"Twitter post failed: {e}")
+                results["twitter"] = f"error: {e}"
+                # Log failure
+                history = TweetHistory(
+                    user_id=user.id,
+                    tweet_text=tweet_text[:500],
+                    status="failed",
+                    platform="twitter",
+                )
+                session.add(history)
+        else:
+            return JSONResponse({"error": "Twitter developer credentials not configured"}, status_code=400)
+
+        # Post to LinkedIn (if connected and requested)
+        should_post_linkedin = post_to_linkedin.lower() in ("true", "1", "on", "yes")
+        if should_post_linkedin and user.linkedin_access_token and user.linkedin_person_urn:
+            try:
+                li_text = linkedin_text or tweet_text  # fallback to tweet text
+                li_response = post_linkedin(
+                    text=li_text,
+                    image_path=chart_path,
+                    person_urn=user.linkedin_person_urn,
+                    access_token=user.linkedin_access_token,
+                )
+                linkedin_post_id = li_response.get("id", "")
+                results["linkedin"] = linkedin_post_id
+
+                # Save LinkedIn history
+                li_history = TweetHistory(
+                    user_id=user.id,
+                    tweet_text=li_text,
+                    linkedin_post_id=linkedin_post_id,
+                    chart_path=chart_path,
+                    status="posted",
+                    platform="linkedin",
+                )
+                session.add(li_history)
+            except Exception as e:
+                log.error(f"LinkedIn post failed: {e}")
+                results["linkedin"] = f"error: {e}"
+
         session.commit()
+
+        message_parts = []
+        if results["twitter"] and not str(results["twitter"]).startswith("error"):
+            message_parts.append("Tweet posted!")
+        if results["linkedin"] and not str(results["linkedin"]).startswith("error"):
+            message_parts.append("LinkedIn posted!")
 
         return JSONResponse({
             "status": "ok",
-            "tweet_id": str(response.data["id"]),
-            "message": "Tweet posted!",
+            "tweet_id": results["twitter"],
+            "linkedin_post_id": results["linkedin"],
+            "message": " ".join(message_parts) or "Posted!",
         })
 
     except Exception as e:
@@ -407,6 +488,8 @@ async def get_history(current_user: User = Depends(get_current_user)):
                     "id": t.id,
                     "text": t.tweet_text,
                     "tweet_id": t.tweet_id,
+                    "linkedin_post_id": getattr(t, "linkedin_post_id", None),
+                    "platform": getattr(t, "platform", "twitter"),
                     "story_title": t.story_title,
                     "story_url": t.story_url,
                     "posted_at": t.posted_at.isoformat() if t.posted_at else None,

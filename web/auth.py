@@ -311,3 +311,230 @@ async def logout(request: Request):
     response = RedirectResponse(url="/login", status_code=303)
     clear_session_cookie(response)
     return response
+
+
+# ---------------------------------------------------------------------------
+# LinkedIn OAuth 2.0 — for connecting LinkedIn posting
+# ---------------------------------------------------------------------------
+
+# In-memory store for LinkedIn OAuth state
+_linkedin_state_store: dict[str, dict] = {}
+
+
+def _cleanup_linkedin_state():
+    """Remove LinkedIn state entries older than 10 minutes."""
+    now = datetime.utcnow()
+    expired = [
+        k for k, v in _linkedin_state_store.items()
+        if (now - v["created_at"]).total_seconds() > 600
+    ]
+    for k in expired:
+        _linkedin_state_store.pop(k, None)
+
+
+async def linkedin_connect_start(request: Request):
+    """Start LinkedIn OAuth 2.0 flow to connect LinkedIn posting.
+
+    User must already be logged in (Twitter auth). This adds LinkedIn
+    as an additional posting platform.
+    """
+    if not config.LINKEDIN_CLIENT_ID:
+        return JSONResponse(
+            {"error": "LINKEDIN_CLIENT_ID not configured. Add it to .env."},
+            status_code=500,
+        )
+
+    # Must be logged in first
+    user_id = get_user_id_from_cookie(request)
+    if user_id is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    _cleanup_linkedin_state()
+
+    state = secrets.token_urlsafe(32)
+    _linkedin_state_store[state] = {
+        "user_id": user_id,
+        "created_at": datetime.utcnow(),
+    }
+
+    params = {
+        "response_type": "code",
+        "client_id": config.LINKEDIN_CLIENT_ID,
+        "redirect_uri": config.LINKEDIN_REDIRECT_URI,
+        "state": state,
+        "scope": "openid profile w_member_social",
+    }
+    auth_url = f"https://www.linkedin.com/oauth/v2/authorization?{urllib.parse.urlencode(params)}"
+    return RedirectResponse(url=auth_url, status_code=303)
+
+
+async def linkedin_connect_callback(request: Request):
+    """Handle LinkedIn OAuth callback — store tokens on the existing user."""
+    code = request.query_params.get("code")
+    state = request.query_params.get("state")
+    error = request.query_params.get("error")
+
+    if error:
+        error_desc = request.query_params.get("error_description", error)
+        return RedirectResponse(
+            url=f"/?error=LinkedIn+auth+failed:+{urllib.parse.quote(error_desc)}",
+            status_code=303,
+        )
+
+    if not code or not state:
+        return RedirectResponse(url="/?error=Invalid+LinkedIn+callback", status_code=303)
+
+    state_data = _linkedin_state_store.pop(state, None)
+    if not state_data:
+        return RedirectResponse(url="/?error=Invalid+or+expired+LinkedIn+state", status_code=303)
+
+    user_id = state_data["user_id"]
+
+    try:
+        # Exchange code for access token
+        async with httpx.AsyncClient() as client:
+            token_resp = await client.post(
+                "https://www.linkedin.com/oauth/v2/accessToken",
+                data={
+                    "grant_type": "authorization_code",
+                    "code": code,
+                    "redirect_uri": config.LINKEDIN_REDIRECT_URI,
+                    "client_id": config.LINKEDIN_CLIENT_ID,
+                    "client_secret": config.LINKEDIN_CLIENT_SECRET,
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+            token_data = token_resp.json()
+
+        if "access_token" not in token_data:
+            log.error(f"LinkedIn token exchange failed: {token_data}")
+            error_desc = token_data.get("error_description", "Token exchange failed")
+            return RedirectResponse(
+                url=f"/?error={urllib.parse.quote(error_desc)}",
+                status_code=303,
+            )
+
+        access_token = token_data["access_token"]
+        refresh_token = token_data.get("refresh_token")
+        expires_in = token_data.get("expires_in", 5184000)  # default 60 days
+
+        # Calculate expiry datetime
+        from datetime import timedelta
+        expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
+
+        # Fetch LinkedIn user info via OpenID Connect userinfo endpoint
+        async with httpx.AsyncClient() as client:
+            userinfo_resp = await client.get(
+                "https://api.linkedin.com/v2/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            userinfo = userinfo_resp.json()
+
+        person_urn_id = userinfo.get("sub")  # This is the person ID for the URN
+        linkedin_name = userinfo.get("name", "Unknown")
+
+        if not person_urn_id:
+            log.error(f"Failed to get LinkedIn user info: {userinfo}")
+            return RedirectResponse(url="/?error=Failed+to+get+LinkedIn+profile", status_code=303)
+
+        # Store on existing user
+        db_session = SessionLocal()
+        try:
+            user = db_session.query(User).get(user_id)
+            if user:
+                user.linkedin_access_token = access_token
+                user.linkedin_refresh_token = refresh_token
+                user.linkedin_token_expires_at = expires_at
+                user.linkedin_person_urn = person_urn_id
+                user.linkedin_name = linkedin_name
+                db_session.commit()
+                log.info(f"LinkedIn connected for user {user_id}: {linkedin_name}")
+            else:
+                return RedirectResponse(url="/?error=User+not+found", status_code=303)
+        finally:
+            db_session.close()
+
+        return RedirectResponse(url="/?success=LinkedIn+connected!", status_code=303)
+
+    except Exception as e:
+        log.error(f"LinkedIn OAuth callback error: {e}")
+        return RedirectResponse(
+            url=f"/?error={urllib.parse.quote(str(e)[:100])}",
+            status_code=303,
+        )
+
+
+async def linkedin_disconnect(request: Request):
+    """Disconnect LinkedIn by clearing tokens."""
+    user_id = get_user_id_from_cookie(request)
+    if user_id is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    db_session = SessionLocal()
+    try:
+        user = db_session.query(User).get(user_id)
+        if user:
+            user.linkedin_access_token = None
+            user.linkedin_refresh_token = None
+            user.linkedin_token_expires_at = None
+            user.linkedin_person_urn = None
+            user.linkedin_name = None
+            db_session.commit()
+            log.info(f"LinkedIn disconnected for user {user_id}")
+    finally:
+        db_session.close()
+
+    return RedirectResponse(url="/", status_code=303)
+
+
+def refresh_linkedin_token_sync(user_id: int) -> bool:
+    """Refresh LinkedIn access token if expired or near-expiry.
+
+    Synchronous version (uses requests) for use in APScheduler background threads.
+    """
+    import requests as req
+
+    db_session = SessionLocal()
+    try:
+        user = db_session.query(User).get(user_id)
+        if not user or not user.linkedin_refresh_token:
+            return False
+
+        # Check if token is near expiry (within 7 days)
+        if user.linkedin_token_expires_at:
+            days_until_expiry = (user.linkedin_token_expires_at - datetime.utcnow()).days
+            if days_until_expiry > 7:
+                return True  # Token still valid, no refresh needed
+
+        resp = req.post(
+            "https://www.linkedin.com/oauth/v2/accessToken",
+            data={
+                "grant_type": "refresh_token",
+                "refresh_token": user.linkedin_refresh_token,
+                "client_id": config.LINKEDIN_CLIENT_ID,
+                "client_secret": config.LINKEDIN_CLIENT_SECRET,
+            },
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            timeout=30,
+        )
+        data = resp.json()
+
+        if "access_token" in data:
+            from datetime import timedelta
+            user.linkedin_access_token = data["access_token"]
+            if "refresh_token" in data:
+                user.linkedin_refresh_token = data["refresh_token"]
+            user.linkedin_token_expires_at = datetime.utcnow() + timedelta(
+                seconds=data.get("expires_in", 5184000)
+            )
+            db_session.commit()
+            log.info(f"LinkedIn token refreshed for user {user_id}")
+            return True
+        else:
+            log.error(f"LinkedIn token refresh failed: {data}")
+            return False
+    except Exception as e:
+        log.error(f"LinkedIn token refresh error for user {user_id}: {e}")
+        return False
+    finally:
+        db_session.close()

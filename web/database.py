@@ -36,6 +36,13 @@ class User(Base):
     twitter_access_token_secret = Column(String, nullable=True)
     twitter_username = Column(String, nullable=True)
 
+    # LinkedIn OAuth 2.0 (tokens from platform's LinkedIn app)
+    linkedin_access_token = Column(String, nullable=True)
+    linkedin_refresh_token = Column(String, nullable=True)
+    linkedin_token_expires_at = Column(DateTime, nullable=True)  # access tokens expire in 60 days
+    linkedin_person_urn = Column(String, nullable=True)  # "sub" ID from LinkedIn userinfo
+    linkedin_name = Column(String, nullable=True)  # Display name from LinkedIn
+
     # Role
     is_owner = Column(Boolean, default=False)
 
@@ -54,6 +61,7 @@ class Settings(Base):
     schedule_times = Column(Text, default='["09:00"]')
     timezone = Column(String, default="America/Los_Angeles")
     tweet_style = Column(String, default="founder-focused")
+    linkedin_posting_enabled = Column(Boolean, default=True)
 
     user = relationship("User", back_populates="settings")
 
@@ -82,6 +90,8 @@ class TweetHistory(Base):
     chart_path = Column(String, nullable=True)
     posted_at = Column(DateTime, default=datetime.utcnow)
     status = Column(String, default="posted")  # posted | failed | scheduled
+    platform = Column(String, default="twitter")  # twitter | linkedin
+    linkedin_post_id = Column(String, nullable=True)  # LinkedIn's post URN
 
     user = relationship("User", back_populates="tweets")
 
@@ -103,11 +113,33 @@ def upgrade_db():
         ("twitter_user_id", "TEXT"),
         ("twitter_oauth2_access_token", "TEXT"),
         ("twitter_oauth2_refresh_token", "TEXT"),
+        ("linkedin_access_token", "TEXT"),
+        ("linkedin_refresh_token", "TEXT"),
+        ("linkedin_token_expires_at", "TEXT"),
+        ("linkedin_person_urn", "TEXT"),
+        ("linkedin_name", "TEXT"),
     ]
 
     for col_name, col_type in new_columns:
         if col_name not in existing_cols:
             cursor.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_type}")
+
+    # Migrate tweet_history table
+    cursor.execute("PRAGMA table_info(tweet_history)")
+    history_cols = {row[1] for row in cursor.fetchall()}
+    new_history_columns = [
+        ("platform", "TEXT DEFAULT 'twitter'"),
+        ("linkedin_post_id", "TEXT"),
+    ]
+    for col_name, col_type in new_history_columns:
+        if col_name not in history_cols:
+            cursor.execute(f"ALTER TABLE tweet_history ADD COLUMN {col_name} {col_type}")
+
+    # Migrate settings table
+    cursor.execute("PRAGMA table_info(settings)")
+    settings_cols = {row[1] for row in cursor.fetchall()}
+    if "linkedin_posting_enabled" not in settings_cols:
+        cursor.execute("ALTER TABLE settings ADD COLUMN linkedin_posting_enabled INTEGER DEFAULT 1")
 
     conn.commit()
     conn.close()

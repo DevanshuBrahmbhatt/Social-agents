@@ -19,6 +19,12 @@ TWITTER_CLIENT_ID = os.getenv("TWITTER_CLIENT_ID", "")
 TWITTER_CLIENT_SECRET = os.getenv("TWITTER_CLIENT_SECRET", "")
 TWITTER_REDIRECT_URI = os.getenv("TWITTER_REDIRECT_URI", "http://localhost:8000/auth/callback")
 
+# LinkedIn OAuth 2.0 (single platform app — users authorize via OAuth)
+LINKEDIN_CLIENT_ID = os.getenv("LINKEDIN_CLIENT_ID", "")
+LINKEDIN_CLIENT_SECRET = os.getenv("LINKEDIN_CLIENT_SECRET", "")
+LINKEDIN_REDIRECT_URI = os.getenv("LINKEDIN_REDIRECT_URI", "http://localhost:8000/auth/linkedin/callback")
+LINKEDIN_API_VERSION = os.getenv("LINKEDIN_API_VERSION", "202501")
+
 # Session security (optional — auto-derived if not set)
 SECRET_KEY = os.getenv("SECRET_KEY", "")
 

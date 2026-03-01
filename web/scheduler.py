@@ -11,6 +11,8 @@ from core.news_fetcher import fetch_all_stories, deep_research_story
 from core.tweet_generator import pick_best_story, generate_tweet
 from core.chart_generator import generate_chart
 from core.twitter_poster import post_tweet
+from core.linkedin_poster import post_linkedin
+from web.auth import refresh_linkedin_token_sync
 
 log = logging.getLogger(__name__)
 
@@ -64,37 +66,85 @@ def run_scheduled_tweet(user_id: int):
         # Generate chart (always mandatory now)
         chart_path = generate_chart(result.get("chart_data", {"should_chart": True}))
 
-        # Post tweet
+        # Post to Twitter
         creds = dict(
             api_key=user.twitter_api_key,
             api_secret=user.twitter_api_secret,
             access_token=user.twitter_access_token,
             access_token_secret=user.twitter_access_token_secret,
         )
-        response = post_tweet(result["tweet"], chart_path, **creds)
+        try:
+            response = post_tweet(result["tweet"], chart_path, **creds)
+            history = TweetHistory(
+                user_id=user.id,
+                tweet_text=result["tweet"],
+                tweet_id=str(response.data["id"]),
+                story_title=result.get("story_title"),
+                story_url=result.get("story_url"),
+                chart_path=chart_path,
+                status="posted",
+                platform="twitter",
+            )
+            session.add(history)
+            log.info(f"Scheduled tweet posted: {response.data['id']}")
+        except Exception as e:
+            log.error(f"Twitter post failed for user {user_id}: {e}")
+            history = TweetHistory(
+                user_id=user_id,
+                tweet_text=str(e)[:500],
+                status="failed",
+                platform="twitter",
+            )
+            session.add(history)
 
-        # Log to history
-        history = TweetHistory(
-            user_id=user.id,
-            tweet_text=result["tweet"],
-            tweet_id=str(response.data["id"]),
-            story_title=result.get("story_title"),
-            story_url=result.get("story_url"),
-            chart_path=chart_path,
-            status="posted",
-        )
-        session.add(history)
+        # Post to LinkedIn (if connected and enabled)
+        settings = user.settings
+        linkedin_enabled = getattr(settings, "linkedin_posting_enabled", True) if settings else True
+        if user.linkedin_access_token and user.linkedin_person_urn and linkedin_enabled:
+            try:
+                # Refresh token if near expiry
+                refresh_linkedin_token_sync(user_id)
+
+                li_text = result.get("linkedin_post", result["tweet"])
+                li_response = post_linkedin(
+                    text=li_text,
+                    image_path=chart_path,
+                    person_urn=user.linkedin_person_urn,
+                    access_token=user.linkedin_access_token,
+                )
+                li_history = TweetHistory(
+                    user_id=user.id,
+                    tweet_text=li_text,
+                    linkedin_post_id=li_response.get("id", ""),
+                    story_title=result.get("story_title"),
+                    story_url=result.get("story_url"),
+                    chart_path=chart_path,
+                    status="posted",
+                    platform="linkedin",
+                )
+                session.add(li_history)
+                log.info(f"Scheduled LinkedIn post created: {li_response.get('id')}")
+            except Exception as e:
+                log.error(f"LinkedIn post failed for user {user_id}: {e}")
+                li_history = TweetHistory(
+                    user_id=user_id,
+                    tweet_text=str(e)[:500],
+                    status="failed",
+                    platform="linkedin",
+                )
+                session.add(li_history)
+
         session.commit()
-        log.info(f"Scheduled tweet posted: {response.data['id']}")
 
     except Exception as e:
-        log.error(f"Scheduled tweet failed for user {user_id}: {e}")
+        log.error(f"Scheduled tweet pipeline failed for user {user_id}: {e}")
         # Log failure
         try:
             history = TweetHistory(
                 user_id=user_id,
                 tweet_text=str(e)[:500],
                 status="failed",
+                platform="twitter",
             )
             session.add(history)
             session.commit()
