@@ -22,6 +22,9 @@ TWITTER_REDIRECT_URI = os.getenv("TWITTER_REDIRECT_URI", "http://localhost:8000/
 # Session security (optional — auto-derived if not set)
 SECRET_KEY = os.getenv("SECRET_KEY", "")
 
+# Owner login password (REQUIRED in production — disables owner login if empty)
+OWNER_PASSWORD = os.getenv("OWNER_PASSWORD", "")
+
 # News source URLs — HackerNews
 HN_TOP_STORIES_URL = "https://hacker-news.firebaseio.com/v0/topstories.json"
 HN_ITEM_URL = "https://hacker-news.firebaseio.com/v0/item/{}.json"

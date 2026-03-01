@@ -34,6 +34,11 @@ COOKIE_MAX_AGE = 30 * 24 * 3600  # 30 days
 # Cookie session helpers
 # ---------------------------------------------------------------------------
 
+def _is_production() -> bool:
+    """Detect production mode from redirect URI (HTTPS = production)."""
+    return config.TWITTER_REDIRECT_URI.startswith("https://")
+
+
 def create_session_cookie(response, user_id: int):
     """Set a signed session cookie."""
     token = _serializer.dumps({"uid": user_id})
@@ -43,7 +48,7 @@ def create_session_cookie(response, user_id: int):
         max_age=COOKIE_MAX_AGE,
         httponly=True,
         samesite="lax",
-        secure=False,  # Set to True when using HTTPS
+        secure=_is_production(),
     )
 
 
@@ -255,7 +260,31 @@ async def twitter_login_callback(request: Request):
 
 
 async def owner_login(request: Request):
-    """Auto-login as the owner user (for backward compatibility)."""
+    """Password-protected owner login.
+
+    Requires OWNER_PASSWORD in .env. Disabled if no password is set.
+    Only accepts POST with correct password — never auto-logs in.
+    """
+    # Block if no password is configured (production safety)
+    if not config.OWNER_PASSWORD:
+        return RedirectResponse(
+            url="/login?error=Owner+login+disabled.+Set+OWNER_PASSWORD+in+.env+or+use+Twitter+OAuth.",
+            status_code=303,
+        )
+
+    # Must be POST
+    if request.method != "POST":
+        return RedirectResponse(url="/login?error=Invalid+request", status_code=303)
+
+    # Parse form data
+    form = await request.form()
+    submitted_password = form.get("owner_password", "")
+
+    # Constant-time comparison to prevent timing attacks
+    import hmac
+    if not hmac.compare_digest(submitted_password, config.OWNER_PASSWORD):
+        return RedirectResponse(url="/login?error=Invalid+password", status_code=303)
+
     db_session = SessionLocal()
     try:
         owner = db_session.query(User).filter_by(is_owner=True).first()

@@ -85,7 +85,7 @@ async def do_twitter_callback(request: Request):
     return await twitter_login_callback(request)
 
 
-@app.get("/auth/owner-login")
+@app.post("/auth/owner-login")
 async def do_owner_login(request: Request):
     return await owner_login(request)
 

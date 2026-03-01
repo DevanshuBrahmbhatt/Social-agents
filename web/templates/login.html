@@ -420,10 +420,15 @@
 
         .link-owner {
             display: block;
+            width: 100%;
             text-align: center;
             font-size: 0.8rem;
             color: var(--text-tertiary);
             text-decoration: none;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
             transition: color 0.2s;
         }
         .link-owner:hover { color: var(--accent-2); }
@@ -568,9 +573,22 @@
 
                 <div class="divider"><span>or</span></div>
 
-                <a href="/auth/owner-login" class="link-owner">
-                    Sign in as owner &middot; local dev
-                </a>
+                <button type="button" class="link-owner" onclick="document.getElementById('ownerForm').style.display = document.getElementById('ownerForm').style.display === 'none' ? 'block' : 'none'">
+                    Sign in as owner
+                </button>
+
+                <form id="ownerForm" action="/auth/owner-login" method="POST" style="display:none; margin-top: 1rem;">
+                    <div style="display:flex; gap:0.5rem;">
+                        <input type="password" name="owner_password" placeholder="Owner password"
+                               style="flex:1; padding:0.7rem 1rem; background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:10px; color:var(--text-primary); font-family:inherit; font-size:0.85rem; outline:none; transition:border-color 0.2s;"
+                               onfocus="this.style.borderColor='var(--accent-1)'" onblur="this.style.borderColor='var(--border)'" required>
+                        <button type="submit"
+                                style="padding:0.7rem 1.25rem; background:linear-gradient(135deg, var(--accent-1), var(--accent-3)); border:none; border-radius:10px; color:white; font-family:inherit; font-weight:500; font-size:0.85rem; cursor:pointer; transition:transform 0.2s, opacity 0.2s;"
+                                onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+                            Login
+                        </button>
+                    </div>
+                </form>
             </div>
 
             <!-- Steps -->
