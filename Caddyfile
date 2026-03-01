@@ -1,0 +1,3 @@
+twitter.dagent.shop {
+    reverse_proxy tweetagent:8000
+}

@@ -16,12 +16,16 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
-def run_pipeline(dry_run: bool = False) -> dict | None:
+def run_pipeline(dry_run: bool = False, recent_titles: list[str] = None) -> dict | None:
     """Execute the full pipeline: fetch → pick → research → generate → chart → post.
+
+    Args:
+        dry_run: If True, don't actually post to Twitter.
+        recent_titles: Titles of recently posted tweets to avoid repeating topics.
 
     Returns the result dict or None on failure.
     """
-    # Step 1: Fetch stories from HackerNews + TechCrunch
+    # Step 1: Fetch stories from all sources
     log.info("📰 Fetching tech stories...")
     stories = fetch_all_stories()
     log.info(f"Fetched {len(stories)} stories")
@@ -30,9 +34,9 @@ def run_pipeline(dry_run: bool = False) -> dict | None:
         log.error("No stories found. Exiting.")
         return None
 
-    # Step 2: Claude picks the best story
+    # Step 2: Claude picks the best story (avoiding recent topics)
     log.info("🧠 Picking best story with Claude...")
-    story = pick_best_story(stories)
+    story = pick_best_story(stories, recent_titles=recent_titles)
     log.info(f"Selected: {story['title']}")
 
     # Step 3: Deep research with Perplexity

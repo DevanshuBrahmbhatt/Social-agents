@@ -1,13 +1,28 @@
-version: "3.8"
-
 services:
   tweetagent:
     build: .
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     env_file:
       - .env
     volumes:
       - ./db.sqlite3:/app/db.sqlite3
       - ./charts:/app/charts
     restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - tweetagent
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:

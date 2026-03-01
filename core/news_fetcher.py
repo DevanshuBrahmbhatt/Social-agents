@@ -55,16 +55,12 @@ def fetch_hn_stories(limit: int = None) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# TechCrunch RSS
+# TechCrunch RSS (multiple categories)
 # ---------------------------------------------------------------------------
 
 def fetch_techcrunch_stories() -> list[dict]:
     stories = []
-    feeds = [
-        ("venture", config.TC_FUNDING_RSS),
-        ("startups", config.TC_STARTUPS_RSS),
-    ]
-    for feed_name, feed_url in feeds:
+    for feed_name, feed_url in config.TC_FEEDS:
         try:
             feed = feedparser.parse(feed_url)
             for entry in feed.entries[:10]:
@@ -85,13 +81,84 @@ def fetch_techcrunch_stories() -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Reddit (public JSON API — no auth required)
+# ---------------------------------------------------------------------------
+
+def fetch_reddit_stories() -> list[dict]:
+    """Fetch hot posts from tech subreddits via Reddit's public JSON API."""
+    stories = []
+    headers = {"User-Agent": config.REDDIT_USER_AGENT}
+
+    for subreddit in config.REDDIT_SUBREDDITS:
+        url = f"https://www.reddit.com/r/{subreddit}/hot.json?limit={config.MAX_REDDIT_POSTS}"
+        try:
+            resp = requests.get(url, headers=headers, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+
+            for post in data.get("data", {}).get("children", []):
+                p = post.get("data", {})
+
+                # Skip: low score, stickied, self-posts without real URLs
+                if p.get("score", 0) < config.MIN_REDDIT_SCORE:
+                    continue
+                if p.get("stickied"):
+                    continue
+
+                post_url = p.get("url", "")
+                # Skip self-posts (they link to reddit itself)
+                if post_url.startswith(f"https://www.reddit.com/r/{subreddit}"):
+                    continue
+
+                stories.append({
+                    "source": f"reddit-r/{subreddit}",
+                    "title": p.get("title", ""),
+                    "url": post_url,
+                    "score": p.get("score", 0),
+                    "summary": (p.get("selftext") or "")[:300] or None,
+                })
+
+            log.info(f"Fetched {len([s for s in stories if f'r/{subreddit}' in s['source']])} Reddit r/{subreddit} stories")
+        except Exception as e:
+            log.warning(f"Failed to fetch Reddit r/{subreddit}: {e}")
+
+    return stories
+
+
+# ---------------------------------------------------------------------------
+# Business Wire (Technology RSS)
+# ---------------------------------------------------------------------------
+
+def fetch_businesswire_stories() -> list[dict]:
+    """Fetch tech press releases from Business Wire RSS."""
+    stories = []
+    try:
+        feed = feedparser.parse(config.BW_TECH_RSS)
+        for entry in feed.entries[:15]:
+            summary = entry.get("summary", "")
+            if summary:
+                summary = re.sub(r"<[^>]+>", "", summary).strip()[:300]
+            stories.append({
+                "source": "businesswire",
+                "title": entry.get("title", ""),
+                "url": entry.get("link", ""),
+                "score": None,
+                "summary": summary or None,
+            })
+        log.info(f"Fetched {len(stories)} Business Wire stories")
+    except Exception as e:
+        log.warning(f"Failed to fetch Business Wire feed: {e}")
+    return stories
+
+
+# ---------------------------------------------------------------------------
 # Perplexity Deep Research
 # ---------------------------------------------------------------------------
 
 def deep_research_story(story: dict, api_key: str = None) -> str:
-    """Use Perplexity Sonar to deeply research a story for founder/investor context.
+    """Use Perplexity Sonar to deeply research a story for builders and founders.
 
-    Returns a rich text analysis with funding details, market context, data points.
+    Returns a rich text analysis with market context, data points, and insights.
     """
     api_key = api_key or config.PERPLEXITY_API_KEY
     if not api_key:
@@ -103,23 +170,24 @@ def deep_research_story(story: dict, api_key: str = None) -> str:
 
         pplx = OpenAI(api_key=api_key, base_url="https://api.perplexity.ai")
 
-        query = f"""Provide a deep analysis of this tech news story for startup founders and VCs:
+        query = f"""Provide a deep analysis of this tech news story for builders, founders, and investors:
 
 Title: {story['title']}
 URL: {story.get('url', 'N/A')}
 Summary: {story.get('summary', 'N/A')}
+Source: {story.get('source', 'N/A')}
 
 Include ALL of the following if available:
-1. Exact funding amount, valuation, lead investors, round type
-2. Company's previous funding history and valuation trajectory
-3. Revenue, growth rate, user count, or other key metrics
-4. Total addressable market (TAM) size and growth rate
-5. Key competitors and how this company differentiates
-6. Why this matters for the broader startup ecosystem
-7. What signal this sends to founders and investors
-8. Any notable data points, percentages, or dollar figures
+1. Key numbers: funding amounts, valuations, revenue, growth rates, user counts, market size
+2. Context: company background, previous rounds, competitive landscape
+3. Market impact: what this means for the industry, who benefits, who loses
+4. Builder angle: what products/tools/services could be built because of this
+5. Technical details: what technology is involved, what it enables
+6. Regulatory/policy implications if relevant
+7. Timeline: when did this happen, what's the trajectory
+8. Comparable events: similar moves by competitors, historical parallels
 
-Be specific with numbers. This analysis will be used to write an insightful tweet."""
+Be specific with numbers and data points. This analysis will be used to write an insightful long-form post for builders and startup founders."""
 
         response = pplx.chat.completions.create(
             model=config.PERPLEXITY_MODEL,
@@ -136,14 +204,17 @@ Be specific with numbers. This analysis will be used to write an insightful twee
 
 
 # ---------------------------------------------------------------------------
-# Combined Fetch
+# Combined Fetch — All Sources
 # ---------------------------------------------------------------------------
 
 def fetch_all_stories() -> list[dict]:
-    """Fetch stories from all sources and deduplicate by URL."""
+    """Fetch stories from ALL sources and deduplicate by URL."""
     hn_stories = fetch_hn_stories()
     tc_stories = fetch_techcrunch_stories()
-    all_stories = hn_stories + tc_stories
+    reddit_stories = fetch_reddit_stories()
+    bw_stories = fetch_businesswire_stories()
+
+    all_stories = hn_stories + tc_stories + reddit_stories + bw_stories
 
     seen_urls = set()
     unique_stories = []
@@ -155,5 +226,10 @@ def fetch_all_stories() -> list[dict]:
         elif not url:
             unique_stories.append(story)
 
-    log.info(f"Total unique stories: {len(unique_stories)}")
+    source_counts = {}
+    for s in unique_stories:
+        src = s["source"].split("-")[0]
+        source_counts[src] = source_counts.get(src, 0) + 1
+
+    log.info(f"Total unique stories: {len(unique_stories)} — {source_counts}")
     return unique_stories

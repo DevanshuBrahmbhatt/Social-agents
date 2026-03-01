@@ -36,14 +36,24 @@ def run_scheduled_tweet(user_id: int):
 
         log.info(f"Running scheduled tweet for user {user.twitter_username or user.id}")
 
+        # Get recent tweet titles to avoid repeating topics
+        recent_tweets = (
+            session.query(TweetHistory)
+            .filter_by(user_id=user_id, status="posted")
+            .order_by(TweetHistory.posted_at.desc())
+            .limit(10)
+            .all()
+        )
+        recent_titles = [t.story_title or t.tweet_text[:80] for t in recent_tweets if t.story_title or t.tweet_text]
+
         # Fetch stories
         stories = fetch_all_stories()
         if not stories:
             log.error("No stories found")
             return
 
-        # Pick best story
-        story = pick_best_story(stories, api_key=user.anthropic_api_key)
+        # Pick best story (avoiding recently covered topics)
+        story = pick_best_story(stories, api_key=user.anthropic_api_key, recent_titles=recent_titles)
 
         # Deep research
         research = deep_research_story(story, api_key=user.perplexity_api_key)

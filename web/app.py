@@ -262,7 +262,19 @@ async def generate_preview(current_user: User = Depends(get_current_user)):
         if not stories:
             return JSONResponse({"error": "No stories found"}, status_code=500)
 
-        story = pick_best_story(stories, api_key=user.anthropic_api_key)
+        # Get recent tweets to avoid repeating topics
+        hist_session = SessionLocal()
+        recent_tweets = (
+            hist_session.query(TweetHistory)
+            .filter_by(user_id=user.id, status="posted")
+            .order_by(TweetHistory.posted_at.desc())
+            .limit(10)
+            .all()
+        )
+        recent_titles = [t.story_title or t.tweet_text[:80] for t in recent_tweets if t.story_title or t.tweet_text]
+        hist_session.close()
+
+        story = pick_best_story(stories, api_key=user.anthropic_api_key, recent_titles=recent_titles)
         research = deep_research_story(story, api_key=user.perplexity_api_key)
         result = generate_tweet(story, research, api_key=user.anthropic_api_key)
 

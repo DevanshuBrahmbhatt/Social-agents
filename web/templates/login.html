@@ -1,94 +1,604 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TweetAgent — Login</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>tailwind.config={darkMode:'class',theme:{extend:{colors:{brand:'#6366f1'}}}}</script>
+    <title>TweetAgent — Your AI Posting Agent</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
     <style>
-        body { background: #0a0a0a; }
-        .card { background: #111; border: 1px solid #1e1e1e; border-radius: 12px; }
-        .btn-primary { background: #6366f1; transition: all 0.2s; }
-        .btn-primary:hover { background: #4f46e5; transform: translateY(-1px); }
-        .btn-twitter { background: #000; border: 1px solid #333; transition: all 0.2s; }
-        .btn-twitter:hover { background: #111; border-color: #555; transform: translateY(-1px); }
-        input { background: #0a0a0a; border: 1px solid #2a2a2a; color: #e0e0e0; }
-        input:focus { border-color: #6366f1; outline: none; box-shadow: 0 0 0 2px rgba(99,102,241,0.2); }
-        .fade-in { animation: fadeIn 0.4s ease-in; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --ink: #050505;
+            --surface: rgba(255,255,255,0.03);
+            --surface-hover: rgba(255,255,255,0.06);
+            --border: rgba(255,255,255,0.06);
+            --border-bright: rgba(255,255,255,0.12);
+            --text-primary: #f0eee6;
+            --text-secondary: rgba(240,238,230,0.5);
+            --text-tertiary: rgba(240,238,230,0.25);
+            --accent-1: #818cf8;
+            --accent-2: #a78bfa;
+            --accent-3: #c084fc;
+            --glow: rgba(129,140,248,0.15);
+        }
+
+        body {
+            background: var(--ink);
+            color: var(--text-primary);
+            font-family: 'DM Sans', system-ui, sans-serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ── Ambient background ── */
+        .ambient {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            overflow: hidden;
+            pointer-events: none;
+        }
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(120px);
+            opacity: 0.35;
+        }
+        .orb-1 {
+            width: 600px; height: 600px;
+            background: radial-gradient(circle, var(--accent-1), transparent 70%);
+            top: -15%; left: -10%;
+            animation: drift1 25s ease-in-out infinite;
+        }
+        .orb-2 {
+            width: 500px; height: 500px;
+            background: radial-gradient(circle, var(--accent-3), transparent 70%);
+            bottom: -20%; right: -10%;
+            animation: drift2 30s ease-in-out infinite;
+        }
+        .orb-3 {
+            width: 300px; height: 300px;
+            background: radial-gradient(circle, var(--accent-2), transparent 70%);
+            top: 40%; left: 50%;
+            animation: drift3 20s ease-in-out infinite;
+        }
+        @keyframes drift1 {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(80px, 60px) scale(1.1); }
+            66% { transform: translate(-40px, 30px) scale(0.95); }
+        }
+        @keyframes drift2 {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(-60px, -40px) scale(1.05); }
+            66% { transform: translate(40px, -20px) scale(0.9); }
+        }
+        @keyframes drift3 {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); }
+            50% { transform: translate(-30%, -60%) scale(1.2); }
+        }
+
+        /* ── Grain overlay ── */
+        .grain {
+            position: fixed;
+            inset: 0;
+            z-index: 1;
+            pointer-events: none;
+            opacity: 0.025;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+            background-repeat: repeat;
+            background-size: 256px;
+        }
+
+        /* ── Layout ── */
+        .page {
+            position: relative;
+            z-index: 2;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 1.5rem;
+        }
+
+        .content {
+            width: 100%;
+            max-width: 440px;
+            animation: rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+        @keyframes rise {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ── Robot mascot ── */
+        .robot-wrap {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 2.5rem;
+            animation: float 4s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-12px); }
+        }
+
+        .robot {
+            width: 120px;
+            height: 140px;
+            position: relative;
+        }
+
+        /* Head */
+        .robot-head {
+            width: 80px;
+            height: 72px;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16162a 100%);
+            border: 2px solid rgba(129,140,248,0.3);
+            border-radius: 20px 20px 16px 16px;
+            position: absolute;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            overflow: hidden;
+        }
+        .robot-head::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, rgba(129,140,248,0.08) 0%, transparent 50%);
+            border-radius: inherit;
+        }
+
+        /* Antenna */
+        .antenna {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 2px;
+            height: 16px;
+            background: rgba(129,140,248,0.4);
+        }
+        .antenna::after {
+            content: '';
+            position: absolute;
+            top: -4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-1);
+            box-shadow: 0 0 12px var(--accent-1), 0 0 24px rgba(129,140,248,0.3);
+            animation: antennaPulse 2s ease-in-out infinite;
+        }
+        @keyframes antennaPulse {
+            0%, 100% { opacity: 1; box-shadow: 0 0 12px var(--accent-1), 0 0 24px rgba(129,140,248,0.3); }
+            50% { opacity: 0.6; box-shadow: 0 0 6px var(--accent-1), 0 0 12px rgba(129,140,248,0.15); }
+        }
+
+        /* Eyes */
+        .eyes {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            margin-top: 22px;
+            position: relative;
+            z-index: 1;
+        }
+        .eye {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--accent-1);
+            box-shadow: 0 0 16px var(--accent-1), 0 0 32px rgba(129,140,248,0.25);
+            animation: blink 4s ease-in-out infinite;
+        }
+        .eye:nth-child(2) { animation-delay: 0.1s; }
+        @keyframes blink {
+            0%, 42%, 48%, 100% { transform: scaleY(1); }
+            45% { transform: scaleY(0.1); }
+        }
+
+        /* Mouth */
+        .mouth {
+            width: 24px;
+            height: 3px;
+            background: rgba(129,140,248,0.25);
+            border-radius: 2px;
+            margin: 10px auto 0;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Body */
+        .robot-body {
+            width: 56px;
+            height: 40px;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16162a 100%);
+            border: 2px solid rgba(129,140,248,0.2);
+            border-radius: 8px 8px 12px 12px;
+            position: absolute;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        .robot-body::before {
+            content: '';
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 2px solid rgba(129,140,248,0.2);
+            background: rgba(129,140,248,0.05);
+        }
+
+        /* Arms */
+        .arm {
+            position: absolute;
+            width: 8px;
+            height: 28px;
+            background: linear-gradient(180deg, #1a1a2e, #12122a);
+            border: 1.5px solid rgba(129,140,248,0.2);
+            border-radius: 4px;
+            bottom: 24px;
+        }
+        .arm-l {
+            left: 10px;
+            transform-origin: top center;
+            animation: armSwing 3s ease-in-out infinite;
+        }
+        .arm-r {
+            right: 10px;
+            transform-origin: top center;
+            animation: armSwing 3s ease-in-out infinite reverse;
+        }
+        @keyframes armSwing {
+            0%, 100% { transform: rotate(-5deg); }
+            50% { transform: rotate(5deg); }
+        }
+
+        /* Feet */
+        .feet {
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+        }
+        .foot {
+            width: 18px;
+            height: 8px;
+            background: #1a1a2e;
+            border: 1.5px solid rgba(129,140,248,0.2);
+            border-radius: 4px 4px 6px 6px;
+        }
+
+        /* ── Headline ── */
+        .headline {
+            text-align: center;
+            margin-bottom: 2.5rem;
+        }
+        .headline .logo-text {
+            font-family: 'Syne', sans-serif;
+            font-weight: 800;
+            font-size: 2rem;
+            letter-spacing: -0.03em;
+            background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-2) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .headline .badge {
+            display: inline-block;
+            font-family: 'Syne', sans-serif;
+            font-size: 0.6rem;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--accent-2);
+            border: 1px solid rgba(167,139,250,0.25);
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-left: 6px;
+            vertical-align: super;
+        }
+        .headline .tagline {
+            margin-top: 0.75rem;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: var(--text-secondary);
+            max-width: 360px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* ── Glass card ── */
+        .glass-card {
+            background: var(--surface);
+            backdrop-filter: blur(40px) saturate(1.2);
+            -webkit-backdrop-filter: blur(40px) saturate(1.2);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 2.25rem;
+            transition: border-color 0.3s;
+        }
+        .glass-card:hover {
+            border-color: var(--border-bright);
+        }
+
+        .card-title {
+            font-family: 'Syne', sans-serif;
+            font-weight: 600;
+            font-size: 1.1rem;
+            text-align: center;
+            margin-bottom: 0.35rem;
+        }
+        .card-sub {
+            text-align: center;
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            margin-bottom: 1.75rem;
+        }
+
+        /* ── Buttons ── */
+        .btn-x {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            width: 100%;
+            padding: 0.85rem 1.5rem;
+            background: var(--text-primary);
+            color: var(--ink);
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 500;
+            font-size: 0.9rem;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-x::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, var(--accent-1), var(--accent-3));
+            opacity: 0;
+            transition: opacity 0.3s;
+            border-radius: inherit;
+        }
+        .btn-x:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(129,140,248,0.2);
+        }
+        .btn-x:hover::before {
+            opacity: 1;
+        }
+        .btn-x:hover span,
+        .btn-x:hover svg {
+            color: white;
+            fill: white;
+        }
+        .btn-x span, .btn-x svg {
+            position: relative;
+            z-index: 1;
+            transition: color 0.3s, fill 0.3s;
+        }
+        .btn-x:active { transform: translateY(0); }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+        .divider span {
+            font-size: 0.7rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .link-owner {
+            display: block;
+            text-align: center;
+            font-size: 0.8rem;
+            color: var(--text-tertiary);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .link-owner:hover { color: var(--accent-2); }
+
+        /* ── Error ── */
+        .error-bar {
+            background: rgba(248,113,113,0.08);
+            border: 1px solid rgba(248,113,113,0.15);
+            border-radius: 12px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 1.25rem;
+            font-size: 0.82rem;
+            color: #f87171;
+        }
+
+        /* ── Steps ── */
+        .steps {
+            margin-top: 2.5rem;
+        }
+        .steps-title {
+            font-family: 'Syne', sans-serif;
+            font-weight: 600;
+            font-size: 0.75rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-tertiary);
+            text-align: center;
+            margin-bottom: 1.25rem;
+        }
+        .steps-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+        .step {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 1rem;
+            transition: border-color 0.3s, transform 0.3s;
+            animation: rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+        .step:nth-child(1) { animation-delay: 0.1s; }
+        .step:nth-child(2) { animation-delay: 0.2s; }
+        .step:nth-child(3) { animation-delay: 0.3s; }
+        .step:nth-child(4) { animation-delay: 0.4s; }
+        .step:hover {
+            border-color: var(--border-bright);
+            transform: translateY(-2px);
+        }
+        .step-num {
+            font-family: 'Syne', sans-serif;
+            font-weight: 700;
+            font-size: 0.7rem;
+            color: var(--accent-2);
+            margin-bottom: 0.4rem;
+        }
+        .step-text {
+            font-size: 0.78rem;
+            line-height: 1.5;
+            color: var(--text-secondary);
+        }
+
+        /* ── Footer ── */
+        .foot-note {
+            margin-top: 2.5rem;
+            text-align: center;
+            font-size: 0.7rem;
+            color: var(--text-tertiary);
+            letter-spacing: 0.02em;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 480px) {
+            .content { max-width: 100%; }
+            .headline .logo-text { font-size: 1.65rem; }
+            .steps-grid { grid-template-columns: 1fr; }
+            .robot { transform: scale(0.85); }
+            .glass-card { padding: 1.75rem; }
+        }
     </style>
 </head>
-<body class="text-gray-200 min-h-screen flex items-center justify-center">
-    <div class="w-full max-w-md px-6 fade-in">
+<body>
 
-        <!-- Logo -->
-        <div class="text-center mb-8">
-            <div class="w-14 h-14 bg-brand rounded-xl flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4">T</div>
-            <h1 class="text-3xl font-bold text-white">TweetAgent</h1>
-            <p class="text-sm text-gray-500 mt-2">AI-powered tweet automation for builders & startups</p>
-            <p class="text-xs text-gray-600 mt-1">Bring your own API keys. Zero cost to start.</p>
-        </div>
-
-        <!-- Error -->
-        {% if error %}
-        <div class="bg-red-900/20 border border-red-800/30 rounded-lg px-4 py-3 mb-4 text-sm text-red-400">
-            {{ error }}
-        </div>
-        {% endif %}
-
-        <!-- Login Card -->
-        <div class="card p-8">
-            <h2 class="text-lg font-semibold text-white mb-2 text-center">Get Started</h2>
-            <p class="text-sm text-gray-500 mb-6 text-center">Login with your Twitter account to start automating your tweets</p>
-
-            <!-- Login with Twitter -->
-            <a href="/auth/twitter"
-                class="btn-twitter text-white px-5 py-3 rounded-lg text-sm font-medium flex items-center justify-center gap-3 w-full">
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
-                </svg>
-                Login with Twitter / X
-            </a>
-
-            <!-- Divider -->
-            <div class="flex items-center gap-3 my-6">
-                <div class="flex-1 border-t border-gray-800"></div>
-                <span class="text-xs text-gray-600">or</span>
-                <div class="flex-1 border-t border-gray-800"></div>
-            </div>
-
-            <!-- Owner Login -->
-            <a href="/auth/owner-login"
-                class="text-sm text-gray-500 hover:text-brand transition-colors block text-center">
-                Login as owner (local dev)
-            </a>
-        </div>
-
-        <!-- How it works -->
-        <div class="mt-8 space-y-3">
-            <h3 class="text-sm font-medium text-gray-400 text-center mb-4">How it works</h3>
-            <div class="flex items-start gap-3">
-                <div class="w-6 h-6 bg-brand/20 rounded-full flex items-center justify-center text-brand text-xs font-bold flex-shrink-0 mt-0.5">1</div>
-                <p class="text-sm text-gray-500">Login with Twitter — this is your identity</p>
-            </div>
-            <div class="flex items-start gap-3">
-                <div class="w-6 h-6 bg-brand/20 rounded-full flex items-center justify-center text-brand text-xs font-bold flex-shrink-0 mt-0.5">2</div>
-                <p class="text-sm text-gray-500">Add your API keys (Anthropic, Perplexity, Twitter developer credentials)</p>
-            </div>
-            <div class="flex items-start gap-3">
-                <div class="w-6 h-6 bg-brand/20 rounded-full flex items-center justify-center text-brand text-xs font-bold flex-shrink-0 mt-0.5">3</div>
-                <p class="text-sm text-gray-500">Configure topics & schedule, then start the agent</p>
-            </div>
-            <div class="flex items-start gap-3">
-                <div class="w-6 h-6 bg-brand/20 rounded-full flex items-center justify-center text-brand text-xs font-bold flex-shrink-0 mt-0.5">4</div>
-                <p class="text-sm text-gray-500">The agent posts insightful tweets on your behalf, daily</p>
-            </div>
-        </div>
-
-        <footer class="mt-10 text-center text-xs text-gray-700">
-            TweetAgent v2 — You bring the keys, we bring the agent
-        </footer>
+    <!-- Ambient background -->
+    <div class="ambient">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
     </div>
+    <div class="grain"></div>
+
+    <div class="page">
+        <div class="content">
+
+            <!-- Robot mascot -->
+            <div class="robot-wrap">
+                <div class="robot">
+                    <div class="antenna"></div>
+                    <div class="robot-head">
+                        <div class="eyes">
+                            <div class="eye"></div>
+                            <div class="eye"></div>
+                        </div>
+                        <div class="mouth"></div>
+                    </div>
+                    <div class="arm arm-l"></div>
+                    <div class="arm arm-r"></div>
+                    <div class="robot-body"></div>
+                    <div class="feet">
+                        <div class="foot"></div>
+                        <div class="foot"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Headline -->
+            <div class="headline">
+                <div>
+                    <span class="logo-text">TweetAgent</span>
+                    <span class="badge">v2</span>
+                </div>
+                <p class="tagline">Your AI agent that never sleeps. It researches, writes, and posts &mdash; so you can build.</p>
+            </div>
+
+            <!-- Error -->
+            {% if error %}
+            <div class="error-bar">{{ error }}</div>
+            {% endif %}
+
+            <!-- Login card -->
+            <div class="glass-card">
+                <h2 class="card-title">Get Started</h2>
+                <p class="card-sub">Sign in with your X account to launch your agent</p>
+
+                <a href="/auth/twitter" class="btn-x">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                    </svg>
+                    <span>Continue with X</span>
+                </a>
+
+                <div class="divider"><span>or</span></div>
+
+                <a href="/auth/owner-login" class="link-owner">
+                    Sign in as owner &middot; local dev
+                </a>
+            </div>
+
+            <!-- Steps -->
+            <div class="steps">
+                <p class="steps-title">How it works</p>
+                <div class="steps-grid">
+                    <div class="step">
+                        <div class="step-num">01</div>
+                        <div class="step-text">Sign in with X &mdash; this is your identity</div>
+                    </div>
+                    <div class="step">
+                        <div class="step-num">02</div>
+                        <div class="step-text">Add your API keys for Claude, Perplexity &amp; X</div>
+                    </div>
+                    <div class="step">
+                        <div class="step-num">03</div>
+                        <div class="step-text">Set your topics, tone &amp; posting schedule</div>
+                    </div>
+                    <div class="step">
+                        <div class="step-num">04</div>
+                        <div class="step-text">The agent posts insightful threads for you, daily</div>
+                    </div>
+                </div>
+            </div>
+
+            <p class="foot-note">TweetAgent v2 &mdash; You bring the keys, we bring the agent</p>
+        </div>
+    </div>
+
 </body>
 </html>

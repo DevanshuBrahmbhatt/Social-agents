@@ -51,15 +51,31 @@ Voice & Style:
 - Write 800 to 2000 characters. USE the space — be thorough and insightful."""
 
 PICK_STORY_PROMPT = """\
-Here are today's top tech stories. Pick the ONE story that a startup enthusiast \
-with a product background would find most compelling to write about.
+Here are today's top tech stories from HackerNews, TechCrunch, Reddit, and Business Wire. \
+Pick the ONE story that a startup enthusiast with a product background would find \
+most compelling to write about.
 
-Prioritize: major funding rounds that signal market shifts, breakthrough products, \
-new developer tools that unblock builders, platform shifts, business model innovations, \
-or genuine technical breakthroughs that enable new categories.
+CRITICAL RULE — VARIETY IS MANDATORY:
+{already_covered}
+You MUST pick a DIFFERENT topic. Never repeat a topic we already covered. \
+Surprise the audience — find the story nobody else is talking about yet.
 
-Skip: routine updates, minor releases, opinion pieces without new data, \
-pure corporate PR, incremental feature announcements.
+Prioritize stories that HELP BUILDERS — this could be:
+- Breakthrough products or developer tools that unblock builders
+- AI/ML breakthroughs that enable new product categories
+- Open-source releases that change the game
+- Platform shifts (new APIs, infrastructure changes, ecosystem moves)
+- Regulatory or policy changes that create or destroy markets
+- Big product launches or pivots from major companies
+- Security events that affect how we build
+- Business model innovations worth studying
+- Technical breakthroughs with real-world applications
+- Major funding rounds that signal where the market is heading
+- Interesting takes from developer communities (Reddit, HN discussions)
+
+Skip: routine updates, minor releases, opinion pieces without data, \
+pure corporate PR, incremental feature announcements, clickbait. \
+Also skip stories that are very similar to ones we already covered.
 
 STORIES:
 {stories_text}
@@ -138,10 +154,25 @@ def _parse_response(text: str) -> dict:
     return json.loads(text)
 
 
-def pick_best_story(stories: list[dict], api_key: str = None) -> dict:
-    """Use Claude to pick the most tweetworthy story. Returns the story dict + index."""
+def pick_best_story(stories: list[dict], api_key: str = None,
+                    recent_titles: list[str] = None) -> dict:
+    """Use Claude to pick the most tweetworthy story. Returns the story dict + index.
+
+    Args:
+        stories: List of story dicts from all sources.
+        api_key: Anthropic API key (optional, uses config default).
+        recent_titles: List of titles/topics from recently posted tweets
+                       to avoid picking the same topic again.
+    """
     client = anthropic.Anthropic(api_key=api_key or config.ANTHROPIC_API_KEY)
     stories_text = _format_stories(stories)
+
+    # Build the "already covered" context
+    if recent_titles:
+        covered_lines = "\n".join(f"- {t}" for t in recent_titles[:10])
+        already_covered = f"We have ALREADY posted about these topics recently:\n{covered_lines}\n"
+    else:
+        already_covered = "This is our first post — pick the most interesting story.\n"
 
     for attempt in range(2):
         try:
@@ -149,7 +180,10 @@ def pick_best_story(stories: list[dict], api_key: str = None) -> dict:
                 model=config.CLAUDE_MODEL,
                 max_tokens=200,
                 messages=[
-                    {"role": "user", "content": PICK_STORY_PROMPT.format(stories_text=stories_text)}
+                    {"role": "user", "content": PICK_STORY_PROMPT.format(
+                        stories_text=stories_text,
+                        already_covered=already_covered,
+                    )}
                 ],
             )
             result = _parse_response(response.content[0].text)

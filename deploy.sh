@@ -1,52 +1,65 @@
 #!/bin/bash
-# TweetAgent EC2 Deploy Script
-# Run this on a fresh Ubuntu 22.04+ EC2 instance
+# TweetAgent — Production Deploy Script
+# Run on a fresh Ubuntu 22.04+ EC2 instance
 # Usage: bash deploy.sh
 
 set -e
 
 echo "========================================="
-echo "  TweetAgent — EC2 Deployment"
+echo "  TweetAgent — Production Deployment"
+echo "  Domain: twitter.dagent.shop"
 echo "========================================="
 
 # Update system
 echo ">>> Updating system..."
-sudo apt-get update -y
-sudo apt-get upgrade -y
+sudo apt-get update -y && sudo apt-get upgrade -y
 
 # Install Docker
 echo ">>> Installing Docker..."
-sudo apt-get install -y docker.io docker-compose-v2
-sudo systemctl start docker
-sudo systemctl enable docker
-sudo usermod -aG docker $USER
+if ! command -v docker &> /dev/null; then
+    sudo apt-get install -y docker.io docker-compose-v2
+    sudo systemctl start docker
+    sudo systemctl enable docker
+    sudo usermod -aG docker $USER
+    echo ">>> Docker installed"
+else
+    echo ">>> Docker already installed"
+fi
 
 # Clone or update repo
-if [ -d "/home/ubuntu/Social-agents" ]; then
+REPO_DIR="/home/ubuntu/Social-agents"
+if [ -d "$REPO_DIR" ]; then
     echo ">>> Updating existing repo..."
-    cd /home/ubuntu/Social-agents
+    cd "$REPO_DIR"
     git pull
 else
     echo ">>> Cloning repo..."
     cd /home/ubuntu
-    git clone https://github.com/YOUR_USERNAME/Social-agents.git
+    git clone https://github.com/DevanshuBrahmbhatt/Social-agents.git
     cd Social-agents
 fi
 
 # Check for .env
 if [ ! -f ".env" ]; then
+    cp .env.example .env
     echo ""
     echo "========================================="
-    echo "  SETUP REQUIRED: Create .env file"
+    echo "  SETUP REQUIRED: Edit .env file"
     echo "========================================="
     echo ""
-    echo "Copy the example and fill in your keys:"
-    echo "  cp .env.example .env"
     echo "  nano .env"
     echo ""
-    echo "Then run: docker compose up -d --build"
+    echo "  Fill in your API keys, then run:"
+    echo "  sudo docker compose up -d --build"
     echo ""
     exit 0
+fi
+
+# Update Twitter OAuth callback to production URL
+echo ">>> Updating OAuth callback URL..."
+if grep -q "localhost" .env; then
+    sed -i 's|TWITTER_REDIRECT_URI=.*|TWITTER_REDIRECT_URI=https://twitter.dagent.shop/auth/callback|g' .env
+    echo "  Updated TWITTER_REDIRECT_URI to https://twitter.dagent.shop/auth/callback"
 fi
 
 # Build and run
@@ -58,11 +71,11 @@ echo "========================================="
 echo "  TweetAgent is LIVE!"
 echo "========================================="
 echo ""
-echo "  Dashboard: http://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4):8000"
+echo "  URL: https://twitter.dagent.shop"
 echo ""
-echo "  Useful commands:"
-echo "    docker compose logs -f          # View logs"
-echo "    docker compose restart           # Restart"
-echo "    docker compose down              # Stop"
-echo "    docker compose up -d --build     # Rebuild & start"
+echo "  Commands:"
+echo "    sudo docker compose logs -f          # View logs"
+echo "    sudo docker compose restart          # Restart"
+echo "    sudo docker compose down             # Stop"
+echo "    sudo docker compose up -d --build    # Rebuild"
 echo ""
