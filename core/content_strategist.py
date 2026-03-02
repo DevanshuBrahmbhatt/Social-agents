@@ -65,8 +65,8 @@ CONTENT TYPE OPTIONS (pick ONE):
 - breaking_news: Major funding, acquisition, or launch. Lead with the number. Medium length (include context about the company). Chart likely.
 - hot_take: Contrarian opinion on trending topic. 2-4 sentences with brief context. No chart.
 - startup_wisdom: Timeless advice for builders. Short-medium, 2-4 sentences. No chart.
-- product_spotlight: New tool/product worth knowing. Medium length. Explain what the product does. Maybe chart.
-- ai_research: Paper drop or AI breakthrough. Technical but accessible — explain the breakthrough in plain terms. Medium.
+- product_spotlight: New tool/product worth knowing. Medium length. Explain what the product does AND include user stories (what can users/agents DO with it?). Maybe chart.
+- ai_research: Paper drop or AI breakthrough. Technical but accessible — explain the breakthrough in plain terms and what it unlocks for builders. Medium.
 - founder_move: Notable founder/CEO decision. Story-driven. Explain who the person is. No chart.
 - open_source: Trending repo or major release. Short-medium. Explain what the project does. Developer-focused.
 - industry_analysis: Market shift, data-driven take. THE ONLY type that should be long. WITH chart.

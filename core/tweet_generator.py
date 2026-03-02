@@ -164,12 +164,29 @@ household name, include 1-2 sentences explaining what it is and why it matters. 
 Weave it naturally — don't make it feel like a Wikipedia definition. Example: \
 "GrapheneOS — a privacy-focused Android fork that strips out all Google tracking" \
 NOT just "GrapheneOS" with no explanation.
+- USER STORIES for products/tools: When the story is about a product, tool, or \
+technology, include what real users or agents can DO with it. Example: "With this, \
+a PM can now [action] to [outcome]." Make the impact tangible and personal.
 - {hashtag_instruction}
+
+LINKEDIN POST RULES:
+- DEFAULT length: 400-800 characters for normal news/takes. Keep it concise and punchy.
+- GO LONGER (800-1500 chars) ONLY for: big industry shifts, complex product analysis, \
+explaining technical concepts, sharing detailed results, or coding/architecture deep dives.
+- USER STORIES ARE MANDATORY when talking about products or tools: \
+Always spell out concrete use cases. Example: "With this, a solo founder can now \
+[do specific thing] to [achieve specific outcome]." or "An AI agent can now [capability] \
+which means [practical result]." Make it tangible — your reader should immediately see \
+themselves using this.
+- Professional but not stiff. Conversational like a smart colleague, not a press release.
+- End with a thought-provoking question to drive comments.
+- 2-3 hashtags max. No emojis unless very subtle.
+- NO @mentions. Use company/person names naturally.
 
 Respond with ONLY a JSON object (no markdown, no code fences):
 {{
   "tweet": "<the Twitter/X post>",
-  "linkedin_post": "<LinkedIn version, always 800-2000 chars, professional tone, 2-3 hashtags, end with a thought-provoking question>"{chart_json_field}
+  "linkedin_post": "<LinkedIn version following the rules above>"{chart_json_field}
 }}"""
 
 CHART_JSON_TEMPLATE = """,
