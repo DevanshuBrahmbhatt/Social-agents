@@ -59,11 +59,23 @@ REDDIT_USER_AGENT = "TweetAgent/2.0 (by /u/tweetagent-bot)"
 # News source URLs — Business Wire RSS
 BW_TECH_RSS = "https://feed.businesswire.com/rss/home/?rss=G1QFDERJhkQ%3D"
 
+# News source URLs — New sources (Phase 2: reasoning engine)
+PRODUCTHUNT_RSS = "https://www.producthunt.com/feed"
+GITHUB_TRENDING_URL = "https://api.ossinsight.io/v1/trending-repos"
+ARXIV_AI_RSS = "https://rss.arxiv.org/rss/cs.AI"
+HN_SHOW_STORIES_URL = "https://hacker-news.firebaseio.com/v0/showstories.json"
+HN_LAUNCHES_RSS = "https://hnrss.org/launches"
+TECHMEME_RSS = "https://www.techmeme.com/feed.xml"
+LOBSTERS_RSS = "https://lobste.rs/t/ai,programming.rss"
+DEVTO_API_URL = "https://dev.to/api/articles"
+
 # Settings
 MAX_HN_STORIES = 30
 MIN_HN_SCORE = 50
+MIN_SHOW_HN_SCORE = 20
 MAX_REDDIT_POSTS = 15
 MIN_REDDIT_SCORE = 100
+MAX_GITHUB_TRENDING = 15
 CLAUDE_MODEL = "claude-sonnet-4-20250514"
 PERPLEXITY_MODEL = "sonar-pro"
 

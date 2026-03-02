@@ -93,6 +93,12 @@ class TweetHistory(Base):
     platform = Column(String, default="twitter")  # twitter | linkedin
     linkedin_post_id = Column(String, nullable=True)  # LinkedIn's post URN
 
+    # Strategy metadata (from content strategist reasoning engine)
+    content_type = Column(String, nullable=True)  # breaking_news|hot_take|startup_wisdom|...
+    post_length = Column(String, nullable=True)    # short|medium|long
+    tone = Column(String, nullable=True)           # aphoristic|witty|data-driven|...
+    style_reference = Column(String, nullable=True)  # naval|deedy|seibel|altman|...
+
     user = relationship("User", back_populates="tweets")
 
 
@@ -132,6 +138,17 @@ def upgrade_db():
         ("linkedin_post_id", "TEXT"),
     ]
     for col_name, col_type in new_history_columns:
+        if col_name not in history_cols:
+            cursor.execute(f"ALTER TABLE tweet_history ADD COLUMN {col_name} {col_type}")
+
+    # Strategy columns for tweet_history
+    new_strategy_columns = [
+        ("content_type", "TEXT"),
+        ("post_length", "TEXT"),
+        ("tone", "TEXT"),
+        ("style_reference", "TEXT"),
+    ]
+    for col_name, col_type in new_strategy_columns:
         if col_name not in history_cols:
             cursor.execute(f"ALTER TABLE tweet_history ADD COLUMN {col_name} {col_type}")
 

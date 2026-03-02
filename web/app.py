@@ -23,7 +23,8 @@ from web.auth import (
     linkedin_connect_start, linkedin_connect_callback, linkedin_disconnect,
 )
 from core.news_fetcher import fetch_all_stories, deep_research_story
-from core.tweet_generator import pick_best_story, generate_tweet
+from core.content_strategist import create_content_strategy
+from core.tweet_generator import generate_tweet
 from core.chart_generator import generate_chart
 from core.twitter_poster import post_tweet, post_tweet_dry_run
 from core.linkedin_poster import post_linkedin
@@ -317,6 +318,7 @@ async def generate_preview(current_user: User = Depends(get_current_user)):
         if not user or not user.anthropic_api_key:
             return JSONResponse({"error": "Anthropic API key not configured"}, status_code=400)
 
+        # 1. Fetch stories from all 12 sources
         stories = fetch_all_stories()
         if not stories:
             return JSONResponse({"error": "No stories found"}, status_code=500)
@@ -333,12 +335,25 @@ async def generate_preview(current_user: User = Depends(get_current_user)):
         recent_titles = [t.story_title or t.tweet_text[:80] for t in recent_tweets if t.story_title or t.tweet_text]
         hist_session.close()
 
-        story = pick_best_story(stories, api_key=user.anthropic_api_key, recent_titles=recent_titles)
-        research = deep_research_story(story, api_key=user.perplexity_api_key)
-        result = generate_tweet(story, research, api_key=user.anthropic_api_key)
+        # 2. Content Strategist — reason about what/how to post
+        strategy = create_content_strategy(
+            stories,
+            recent_titles=recent_titles,
+            api_key=user.anthropic_api_key,
+        )
+        story = stories[strategy.selected_story_index]
 
-        # Always generate chart (mandatory)
-        chart_path = generate_chart(result.get("chart_data", {"should_chart": True}))
+        # 3. Conditional deep research
+        if strategy.needs_deep_research:
+            research = deep_research_story(story, api_key=user.perplexity_api_key)
+        else:
+            research = story.get("summary") or story.get("title", "")
+
+        # 4. Generate post (strategy-driven)
+        result = generate_tweet(story, research, api_key=user.anthropic_api_key, strategy=strategy)
+
+        # 5. Conditional chart generation
+        chart_path = generate_chart(result.get("chart_data"))
         chart_url = None
         if chart_path:
             from pathlib import Path
@@ -353,6 +368,17 @@ async def generate_preview(current_user: User = Depends(get_current_user)):
             "chart_url": chart_url,
             "chars": len(result["tweet"]),
             "linkedin_chars": len(linkedin_post),
+            # Strategy metadata for debugging/display
+            "strategy": {
+                "content_type": strategy.content_type,
+                "post_length": strategy.post_length,
+                "tone": strategy.tone,
+                "style_reference": strategy.style_reference,
+                "include_chart": strategy.include_chart,
+                "needs_deep_research": strategy.needs_deep_research,
+                "pick_reason": strategy.pick_reason,
+                "angle": strategy.angle,
+            },
         })
 
     except Exception as e:

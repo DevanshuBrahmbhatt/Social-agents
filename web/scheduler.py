@@ -8,7 +8,8 @@ from apscheduler.triggers.cron import CronTrigger
 
 from web.database import SessionLocal, User, Settings, TweetHistory
 from core.news_fetcher import fetch_all_stories, deep_research_story
-from core.tweet_generator import pick_best_story, generate_tweet
+from core.content_strategist import create_content_strategy
+from core.tweet_generator import generate_tweet
 from core.chart_generator import generate_chart
 from core.twitter_poster import post_tweet
 from core.linkedin_poster import post_linkedin
@@ -23,7 +24,11 @@ _active_users: set[int] = set()
 
 
 def run_scheduled_tweet(user_id: int):
-    """Execute the full tweet pipeline for a specific user."""
+    """Execute the full tweet pipeline for a specific user.
+
+    Pipeline: fetch(12 sources) → strategist(reason) → [conditional research] →
+              generate(strategy-driven) → [conditional chart] → post
+    """
     # Check if user agent is still active
     if user_id not in _active_users:
         log.info(f"Agent for user {user_id} is stopped — skipping scheduled tweet")
@@ -48,25 +53,39 @@ def run_scheduled_tweet(user_id: int):
         )
         recent_titles = [t.story_title or t.tweet_text[:80] for t in recent_tweets if t.story_title or t.tweet_text]
 
-        # Fetch stories
+        # 1. Fetch stories from all 12 sources
         stories = fetch_all_stories()
         if not stories:
             log.error("No stories found")
             return
 
-        # Pick best story (avoiding recently covered topics)
-        story = pick_best_story(stories, api_key=user.anthropic_api_key, recent_titles=recent_titles)
+        # 2. Content Strategist — reason about what/how to post
+        strategy = create_content_strategy(
+            stories,
+            recent_titles=recent_titles,
+            api_key=user.anthropic_api_key,
+        )
+        story = stories[strategy.selected_story_index]
+        log.info(
+            f"Strategy: [{strategy.content_type}] {strategy.post_length} "
+            f"tone={strategy.tone} style={strategy.style_reference} "
+            f"chart={strategy.include_chart} research={strategy.needs_deep_research}"
+        )
 
-        # Deep research
-        research = deep_research_story(story, api_key=user.perplexity_api_key)
+        # 3. Conditional deep research (skip for short hot takes)
+        if strategy.needs_deep_research:
+            research = deep_research_story(story, api_key=user.perplexity_api_key)
+        else:
+            research = story.get("summary") or story.get("title", "")
+            log.info("Skipping deep research — strategy says quick take is better")
 
-        # Generate tweet (long-form)
-        result = generate_tweet(story, research, api_key=user.anthropic_api_key)
+        # 4. Generate post (strategy-driven: length, tone, style, chart)
+        result = generate_tweet(story, research, api_key=user.anthropic_api_key, strategy=strategy)
 
-        # Generate chart (always mandatory now)
-        chart_path = generate_chart(result.get("chart_data", {"should_chart": True}))
+        # 5. Conditional chart generation
+        chart_path = generate_chart(result.get("chart_data"))
 
-        # Post to Twitter
+        # 6. Post to Twitter
         creds = dict(
             api_key=user.twitter_api_key,
             api_secret=user.twitter_api_secret,
@@ -84,6 +103,10 @@ def run_scheduled_tweet(user_id: int):
                 chart_path=chart_path,
                 status="posted",
                 platform="twitter",
+                content_type=strategy.content_type,
+                post_length=strategy.post_length,
+                tone=strategy.tone,
+                style_reference=strategy.style_reference,
             )
             session.add(history)
             log.info(f"Scheduled tweet posted: {response.data['id']}")
@@ -97,7 +120,7 @@ def run_scheduled_tweet(user_id: int):
             )
             session.add(history)
 
-        # Post to LinkedIn (if connected and enabled)
+        # 7. Post to LinkedIn (if connected and enabled)
         settings = user.settings
         linkedin_enabled = getattr(settings, "linkedin_posting_enabled", True) if settings else True
         if user.linkedin_access_token and user.linkedin_person_urn and linkedin_enabled:
@@ -121,6 +144,10 @@ def run_scheduled_tweet(user_id: int):
                     chart_path=chart_path,
                     status="posted",
                     platform="linkedin",
+                    content_type=strategy.content_type,
+                    post_length=strategy.post_length,
+                    tone=strategy.tone,
+                    style_reference=strategy.style_reference,
                 )
                 session.add(li_history)
                 log.info(f"Scheduled LinkedIn post created: {li_response.get('id')}")

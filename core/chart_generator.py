@@ -7,21 +7,26 @@ import config
 log = logging.getLogger(__name__)
 
 
-def generate_chart(chart_data: dict) -> str | None:
+def generate_chart(chart_data: dict = None) -> str | None:
     """Generate a Twitter-optimized chart image from chart_data.
 
-    Charts are ALWAYS generated — this is mandatory for every post.
+    Charts are OPTIONAL — the content strategist decides whether a chart adds value.
 
     Args:
-        chart_data: dict with keys: chart_type, chart_title, data_points
+        chart_data: dict with keys: chart_type, chart_title, data_points.
+                    If None or empty, returns None (no chart).
 
     Returns:
-        Path to the generated PNG image, or None if generation fails.
+        Path to the generated PNG image, or None if no chart needed.
     """
+    if not chart_data or not chart_data.get("should_chart"):
+        log.info("No chart requested for this post — skipping")
+        return None
+
     data_points = chart_data.get("data_points", [])
     if not data_points or len(data_points) < 2:
-        log.warning("Not enough data points for chart — generating placeholder")
-        return _generate_placeholder_chart(chart_data.get("chart_title", "Market Overview"))
+        log.warning("Not enough data points for chart — skipping")
+        return None
 
     try:
         import plotly.graph_objects as go
@@ -118,7 +123,7 @@ def generate_chart(chart_data: dict) -> str | None:
 
     except Exception as e:
         log.error(f"Chart generation failed: {e}")
-        return _generate_placeholder_chart(chart_data.get("chart_title", ""))
+        return None
 
 
 def _generate_placeholder_chart(title: str = "Data Visualization") -> str | None:

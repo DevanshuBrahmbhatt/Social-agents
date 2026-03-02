@@ -158,6 +158,249 @@ def fetch_businesswire_stories() -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Product Hunt (RSS)
+# ---------------------------------------------------------------------------
+
+def fetch_producthunt_stories() -> list[dict]:
+    """Fetch trending products from Product Hunt RSS."""
+    stories = []
+    try:
+        feed = feedparser.parse(config.PRODUCTHUNT_RSS)
+        for entry in feed.entries[:10]:
+            summary = entry.get("summary", "")
+            if summary:
+                summary = re.sub(r"<[^>]+>", "", summary).strip()[:300]
+            stories.append({
+                "source": "producthunt",
+                "title": entry.get("title", ""),
+                "url": entry.get("link", ""),
+                "score": None,
+                "summary": summary or None,
+            })
+        log.info(f"Fetched {len(stories)} Product Hunt stories")
+    except Exception as e:
+        log.warning(f"Failed to fetch Product Hunt: {e}")
+    return stories
+
+
+# ---------------------------------------------------------------------------
+# GitHub Trending (OSS Insight API)
+# ---------------------------------------------------------------------------
+
+def fetch_github_trending() -> list[dict]:
+    """Fetch trending repos from GitHub via OSS Insight API."""
+    stories = []
+    try:
+        resp = requests.get(
+            config.GITHUB_TRENDING_URL,
+            params={"language": "", "period": "daily"},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        rows = data.get("data", data.get("rows", []))
+        for repo in rows[:config.MAX_GITHUB_TRENDING]:
+            name = repo.get("repo_name", repo.get("full_name", ""))
+            desc = repo.get("description", "") or ""
+            stars = repo.get("stars", repo.get("stargazers_count", 0))
+            stories.append({
+                "source": "github-trending",
+                "title": f"{name}: {desc[:150]}" if desc else name,
+                "url": f"https://github.com/{name}",
+                "score": stars,
+                "summary": desc[:300] or None,
+            })
+        log.info(f"Fetched {len(stories)} GitHub trending repos")
+    except Exception as e:
+        log.warning(f"Failed to fetch GitHub trending: {e}")
+    return stories
+
+
+# ---------------------------------------------------------------------------
+# ArXiv AI (RSS)
+# ---------------------------------------------------------------------------
+
+def fetch_arxiv_ai() -> list[dict]:
+    """Fetch latest AI research papers from ArXiv RSS."""
+    stories = []
+    try:
+        feed = feedparser.parse(config.ARXIV_AI_RSS)
+        for entry in feed.entries[:10]:
+            summary = entry.get("summary", "")
+            if summary:
+                summary = re.sub(r"<[^>]+>", "", summary).strip()[:300]
+            stories.append({
+                "source": "arxiv-ai",
+                "title": entry.get("title", "").replace("\n", " ").strip(),
+                "url": entry.get("link", ""),
+                "score": None,
+                "summary": summary or None,
+            })
+        log.info(f"Fetched {len(stories)} ArXiv AI papers")
+    except Exception as e:
+        log.warning(f"Failed to fetch ArXiv AI: {e}")
+    return stories
+
+
+# ---------------------------------------------------------------------------
+# Show HN (Firebase API — builder projects)
+# ---------------------------------------------------------------------------
+
+def _fetch_show_hn_item(item_id: int) -> dict | None:
+    try:
+        resp = requests.get(config.HN_ITEM_URL.format(item_id), timeout=10)
+        resp.raise_for_status()
+        item = resp.json()
+        if item and item.get("type") == "story" and item.get("score", 0) >= config.MIN_SHOW_HN_SCORE:
+            return {
+                "source": "hackernews-show",
+                "title": item.get("title", ""),
+                "url": item.get("url", ""),
+                "score": item.get("score", 0),
+                "summary": None,
+            }
+    except Exception as e:
+        log.debug(f"Failed to fetch Show HN item {item_id}: {e}")
+    return None
+
+
+def fetch_show_hn() -> list[dict]:
+    """Fetch Show HN stories — builder projects and launches."""
+    try:
+        resp = requests.get(config.HN_SHOW_STORIES_URL, timeout=10)
+        resp.raise_for_status()
+        story_ids = resp.json()[:15]
+    except Exception as e:
+        log.warning(f"Failed to fetch Show HN: {e}")
+        return []
+
+    stories = []
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = {executor.submit(_fetch_show_hn_item, sid): sid for sid in story_ids}
+        for future in as_completed(futures):
+            result = future.result()
+            if result:
+                stories.append(result)
+    log.info(f"Fetched {len(stories)} Show HN stories")
+    return stories
+
+
+# ---------------------------------------------------------------------------
+# YC Launch HN (RSS via hnrss.org)
+# ---------------------------------------------------------------------------
+
+def fetch_hn_launches() -> list[dict]:
+    """Fetch YC company launches from HNRSS."""
+    stories = []
+    try:
+        feed = feedparser.parse(config.HN_LAUNCHES_RSS)
+        for entry in feed.entries[:10]:
+            summary = entry.get("summary", "")
+            if summary:
+                summary = re.sub(r"<[^>]+>", "", summary).strip()[:300]
+            stories.append({
+                "source": "yc-launches",
+                "title": entry.get("title", ""),
+                "url": entry.get("link", ""),
+                "score": None,
+                "summary": summary or None,
+            })
+        log.info(f"Fetched {len(stories)} YC Launch HN stories")
+    except Exception as e:
+        log.warning(f"Failed to fetch YC launches: {e}")
+    return stories
+
+
+# ---------------------------------------------------------------------------
+# Techmeme (RSS — curated top tech stories)
+# ---------------------------------------------------------------------------
+
+def fetch_techmeme() -> list[dict]:
+    """Fetch curated tech headlines from Techmeme RSS."""
+    stories = []
+    try:
+        feed = feedparser.parse(config.TECHMEME_RSS)
+        for entry in feed.entries[:10]:
+            summary = entry.get("summary", "")
+            if summary:
+                summary = re.sub(r"<[^>]+>", "", summary).strip()[:300]
+            stories.append({
+                "source": "techmeme",
+                "title": entry.get("title", ""),
+                "url": entry.get("link", ""),
+                "score": None,
+                "summary": summary or None,
+            })
+        log.info(f"Fetched {len(stories)} Techmeme stories")
+    except Exception as e:
+        log.warning(f"Failed to fetch Techmeme: {e}")
+    return stories
+
+
+# ---------------------------------------------------------------------------
+# Lobsters (RSS — developer community)
+# ---------------------------------------------------------------------------
+
+def fetch_lobsters() -> list[dict]:
+    """Fetch top posts from Lobsters developer community."""
+    stories = []
+    try:
+        feed = feedparser.parse(config.LOBSTERS_RSS)
+        for entry in feed.entries[:10]:
+            summary = entry.get("summary", "")
+            if summary:
+                summary = re.sub(r"<[^>]+>", "", summary).strip()[:300]
+            stories.append({
+                "source": "lobsters",
+                "title": entry.get("title", ""),
+                "url": entry.get("link", ""),
+                "score": None,
+                "summary": summary or None,
+            })
+        log.info(f"Fetched {len(stories)} Lobsters stories")
+    except Exception as e:
+        log.warning(f"Failed to fetch Lobsters: {e}")
+    return stories
+
+
+# ---------------------------------------------------------------------------
+# DEV.to (REST API — no auth)
+# ---------------------------------------------------------------------------
+
+def fetch_devto_articles() -> list[dict]:
+    """Fetch trending developer articles from DEV.to."""
+    stories = []
+    try:
+        resp = requests.get(config.DEVTO_API_URL, params={"top": 1, "per_page": 10}, timeout=10)
+        resp.raise_for_status()
+        for article in resp.json():
+            stories.append({
+                "source": "devto",
+                "title": article.get("title", ""),
+                "url": article.get("url", ""),
+                "score": article.get("positive_reactions_count", 0),
+                "summary": (article.get("description") or "")[:300] or None,
+            })
+        log.info(f"Fetched {len(stories)} DEV.to articles")
+    except Exception as e:
+        log.warning(f"Failed to fetch DEV.to: {e}")
+    return stories
+
+
+# ---------------------------------------------------------------------------
+# Safe fetch wrapper
+# ---------------------------------------------------------------------------
+
+def _safe_fetch(fn) -> list[dict]:
+    """Wrap a fetch function so it never crashes the pipeline."""
+    try:
+        return fn()
+    except Exception as e:
+        log.warning(f"Source {fn.__name__} failed: {e}")
+        return []
+
+
+# ---------------------------------------------------------------------------
 # Perplexity Deep Research
 # ---------------------------------------------------------------------------
 
@@ -222,13 +465,24 @@ Be specific with numbers and data points. This analysis will be used to write an
 # ---------------------------------------------------------------------------
 
 def fetch_all_stories() -> list[dict]:
-    """Fetch stories from ALL sources and deduplicate by URL."""
-    hn_stories = fetch_hn_stories()
-    tc_stories = fetch_techcrunch_stories()
-    reddit_stories = fetch_reddit_stories()
-    bw_stories = fetch_businesswire_stories()
+    """Fetch stories from ALL 12 sources and deduplicate by URL."""
+    all_stories = []
 
-    all_stories = hn_stories + tc_stories + reddit_stories + bw_stories
+    # Core sources (always fetch)
+    all_stories += _safe_fetch(fetch_hn_stories)
+    all_stories += _safe_fetch(fetch_techcrunch_stories)
+    all_stories += _safe_fetch(fetch_reddit_stories)
+    all_stories += _safe_fetch(fetch_businesswire_stories)
+
+    # Extended sources (Phase 2: reasoning engine)
+    all_stories += _safe_fetch(fetch_producthunt_stories)
+    all_stories += _safe_fetch(fetch_github_trending)
+    all_stories += _safe_fetch(fetch_arxiv_ai)
+    all_stories += _safe_fetch(fetch_show_hn)
+    all_stories += _safe_fetch(fetch_hn_launches)
+    all_stories += _safe_fetch(fetch_techmeme)
+    all_stories += _safe_fetch(fetch_lobsters)
+    all_stories += _safe_fetch(fetch_devto_articles)
 
     seen_urls = set()
     unique_stories = []
