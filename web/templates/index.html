@@ -747,6 +747,69 @@
             </div>
             {% endif %}
 
+            <!-- ══ AGENT MCP SERVER (owner only) ══ -->
+            {% if user.is_owner %}
+            <div class="glass fade-up">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
+                    <div>
+                        <h2 class="section-title">Agent MCP Server</h2>
+                        <p class="section-sub">Connect other AI agents or Claude Code to post via this platform</p>
+                    </div>
+                    <span class="badge badge-brand">API</span>
+                </div>
+
+                <!-- REST API -->
+                <div style="margin-bottom:1.5rem;">
+                    <p class="label">REST API Endpoint</p>
+                    <div style="background:rgba(0,0,0,0.3); border-radius:10px; padding:0.75rem 1rem; font-family:'DM Sans',monospace; font-size:0.78rem; color:var(--accent); position:relative;">
+                        <code>POST {{ request.url.scheme }}://{{ request.url.netloc }}/api/external-post</code>
+                        <button onclick="navigator.clipboard.writeText('{{ request.url.scheme }}://{{ request.url.netloc }}/api/external-post');toast('Copied!')" style="position:absolute; right:0.75rem; top:50%; transform:translateY(-50%); background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:6px; padding:0.25rem 0.5rem; color:var(--text-2); cursor:pointer; font-size:0.65rem;" title="Copy">Copy</button>
+                    </div>
+                    <p class="help-text" style="margin-top:0.4rem;">Header: <code style="color:var(--accent-2);">X-API-Key: your-key</code> &nbsp;&bull;&nbsp; Body: <code style="color:var(--accent-2);">{"tweet_text": "...", "linkedin_text": "..."}</code></p>
+                </div>
+
+                <!-- MCP Config -->
+                <div style="margin-bottom:1.5rem;">
+                    <p class="label">Claude Code / Claude Desktop &mdash; MCP Config</p>
+                    <div id="mcpSnippet" style="background:rgba(0,0,0,0.3); border-radius:10px; padding:0.75rem 1rem; font-family:monospace; font-size:0.7rem; color:var(--text-2); white-space:pre; overflow-x:auto; line-height:1.7; position:relative;">{
+  <span style="color:var(--accent);">"mcpServers"</span>: {
+    <span style="color:var(--accent-2);">"social-agents"</span>: {
+      <span style="color:var(--text-2);">"command"</span>: <span style="color:var(--green);">"python"</span>,
+      <span style="color:var(--text-2);">"args"</span>: [<span style="color:var(--green);">"/path/to/Social-agents/mcp_server.py"</span>],
+      <span style="color:var(--text-2);">"env"</span>: {
+        <span style="color:var(--text-2);">"SOCIAL_AGENTS_URL"</span>: <span style="color:var(--green);">"{{ request.url.scheme }}://{{ request.url.netloc }}"</span>,
+        <span style="color:var(--text-2);">"SOCIAL_AGENTS_API_KEY"</span>: <span style="color:var(--yellow);">"your-api-key"</span>
+      }
+    }
+  }
+}</div>
+                    <p class="help-text" style="margin-top:0.4rem;">
+                        Install: <code style="color:var(--accent-2);">pip install mcp httpx</code> &nbsp;&bull;&nbsp;
+                        Download <code style="color:var(--accent-2);">mcp_server.py</code> from the repo
+                    </p>
+                </div>
+
+                <!-- Available Tools -->
+                <div>
+                    <p class="label">Available MCP Tools</p>
+                    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:0.5rem;">
+                        <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px; padding:0.6rem 0.75rem;">
+                            <span style="font-size:0.78rem; font-weight:600; color:var(--accent);">post_content</span>
+                            <p style="font-size:0.68rem; color:var(--text-3); margin-top:0.15rem;">Post to Twitter + LinkedIn with tracking metadata</p>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px; padding:0.6rem 0.75rem;">
+                            <span style="font-size:0.78rem; font-weight:600; color:var(--accent);">post_tweet</span>
+                            <p style="font-size:0.68rem; color:var(--text-3); margin-top:0.15rem;">Quick tweet (max 280 chars)</p>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px; padding:0.6rem 0.75rem;">
+                            <span style="font-size:0.78rem; font-weight:600; color:var(--accent);">post_to_all</span>
+                            <p style="font-size:0.68rem; color:var(--text-3); margin-top:0.15rem;">Post to both Twitter and LinkedIn at once</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
             <!-- ══ POST HISTORY ══ -->
             <div class="glass fade-up">
                 <h2 class="section-title" style="margin-bottom:1rem;">Post History</h2>

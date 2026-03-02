@@ -534,3 +534,94 @@ async def get_history(current_user: User = Depends(get_current_user)):
         })
     finally:
         session.close()
+
+
+# ---------------------------------------------------------------------------
+# API: External Post (for Research Agent integration)
+# ---------------------------------------------------------------------------
+
+@app.post("/api/external-post")
+async def external_post(request: Request):
+    """Receive post from external agents (e.g., Research Agent).
+
+    Authenticated via X-API-Key header matching EXTERNAL_API_KEY env var.
+    """
+    api_key = request.headers.get("X-API-Key", "")
+    expected_key = getattr(config, "EXTERNAL_API_KEY", "")
+    if not api_key or not expected_key or api_key != expected_key:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    body = await request.json()
+    tweet_text = body.get("tweet_text", "")
+    linkedin_text = body.get("linkedin_text", "")
+
+    if not tweet_text:
+        return JSONResponse({"error": "tweet_text is required"}, status_code=400)
+
+    session = SessionLocal()
+    try:
+        # Use owner account for posting
+        owner = session.query(User).filter_by(is_owner=True).first()
+        if not owner:
+            return JSONResponse({"error": "No owner configured"}, status_code=500)
+
+        results = {"tweet_id": None, "linkedin_post_id": None}
+
+        # Post to Twitter
+        if owner.twitter_access_token:
+            try:
+                response = post_tweet(
+                    text=tweet_text,
+                    api_key=owner.twitter_api_key,
+                    api_secret=owner.twitter_api_secret,
+                    access_token=owner.twitter_access_token,
+                    access_token_secret=owner.twitter_access_token_secret,
+                )
+                results["tweet_id"] = str(response.data["id"])
+
+                history = TweetHistory(
+                    user_id=owner.id,
+                    tweet_text=tweet_text,
+                    tweet_id=results["tweet_id"],
+                    story_title=body.get("paper_title", ""),
+                    story_url=body.get("paper_url", ""),
+                    status="posted",
+                    platform="twitter",
+                    content_type="ai_research",
+                )
+                session.add(history)
+            except Exception as e:
+                log.error(f"External post Twitter failed: {e}")
+                results["tweet_id"] = None
+
+        # Post to LinkedIn
+        if owner.linkedin_access_token and owner.linkedin_person_urn and linkedin_text:
+            try:
+                from web.auth import refresh_linkedin_token_sync
+                refresh_linkedin_token_sync(owner.id)
+
+                li_response = post_linkedin(
+                    text=linkedin_text,
+                    person_urn=owner.linkedin_person_urn,
+                    access_token=owner.linkedin_access_token,
+                )
+                results["linkedin_post_id"] = li_response.get("id", "")
+
+                li_history = TweetHistory(
+                    user_id=owner.id,
+                    tweet_text=linkedin_text,
+                    linkedin_post_id=results["linkedin_post_id"],
+                    story_title=body.get("paper_title", ""),
+                    story_url=body.get("paper_url", ""),
+                    status="posted",
+                    platform="linkedin",
+                    content_type="ai_research",
+                )
+                session.add(li_history)
+            except Exception as e:
+                log.error(f"External post LinkedIn failed: {e}")
+
+        session.commit()
+        return JSONResponse(results)
+    finally:
+        session.close()
