@@ -1,0 +1,1143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Social Agents — Post to Twitter & LinkedIn from any AI agent</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --ink: #050505;
+            --surface: rgba(255,255,255,0.03);
+            --surface-hover: rgba(255,255,255,0.06);
+            --border: rgba(255,255,255,0.06);
+            --border-bright: rgba(255,255,255,0.12);
+            --text-primary: #f0eee6;
+            --text-secondary: rgba(240,238,230,0.5);
+            --text-tertiary: rgba(240,238,230,0.25);
+            --accent-1: #818cf8;
+            --accent-2: #a78bfa;
+            --accent-3: #c084fc;
+            --glow: rgba(129,140,248,0.15);
+        }
+
+        body {
+            background: var(--ink);
+            color: var(--text-primary);
+            font-family: 'DM Sans', system-ui, sans-serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ── Ambient background ── */
+        .ambient {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            overflow: hidden;
+            pointer-events: none;
+        }
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(120px);
+            opacity: 0.35;
+        }
+        .orb-1 {
+            width: 600px; height: 600px;
+            background: radial-gradient(circle, var(--accent-1), transparent 70%);
+            top: -15%; left: -10%;
+            animation: drift1 25s ease-in-out infinite;
+        }
+        .orb-2 {
+            width: 500px; height: 500px;
+            background: radial-gradient(circle, var(--accent-3), transparent 70%);
+            bottom: -20%; right: -10%;
+            animation: drift2 30s ease-in-out infinite;
+        }
+        .orb-3 {
+            width: 300px; height: 300px;
+            background: radial-gradient(circle, var(--accent-2), transparent 70%);
+            top: 40%; left: 50%;
+            animation: drift3 20s ease-in-out infinite;
+        }
+        @keyframes drift1 {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(80px, 60px) scale(1.1); }
+            66% { transform: translate(-40px, 30px) scale(0.95); }
+        }
+        @keyframes drift2 {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(-60px, -40px) scale(1.05); }
+            66% { transform: translate(40px, -20px) scale(0.9); }
+        }
+        @keyframes drift3 {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); }
+            50% { transform: translate(-30%, -60%) scale(1.2); }
+        }
+
+        /* ── Grain overlay ── */
+        .grain {
+            position: fixed;
+            inset: 0;
+            z-index: 1;
+            pointer-events: none;
+            opacity: 0.025;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+            background-repeat: repeat;
+            background-size: 256px;
+        }
+
+        /* ── Layout ── */
+        .page {
+            position: relative;
+            z-index: 2;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 3rem 1.5rem 4rem;
+        }
+
+        .content {
+            width: 100%;
+            max-width: 900px;
+        }
+
+        /* ── Scroll-reveal animations ── */
+        .reveal {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .reveal.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* ── Robot mascot ── */
+        .robot-wrap {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 2rem;
+            animation: float 4s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-12px); }
+        }
+
+        .robot {
+            width: 120px;
+            height: 140px;
+            position: relative;
+        }
+
+        /* Head */
+        .robot-head {
+            width: 80px;
+            height: 72px;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16162a 100%);
+            border: 2px solid rgba(129,140,248,0.3);
+            border-radius: 20px 20px 16px 16px;
+            position: absolute;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            overflow: hidden;
+        }
+        .robot-head::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, rgba(129,140,248,0.08) 0%, transparent 50%);
+            border-radius: inherit;
+        }
+
+        /* Antenna */
+        .antenna {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 2px;
+            height: 16px;
+            background: rgba(129,140,248,0.4);
+        }
+        .antenna::after {
+            content: '';
+            position: absolute;
+            top: -4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-1);
+            box-shadow: 0 0 12px var(--accent-1), 0 0 24px rgba(129,140,248,0.3);
+            animation: antennaPulse 2s ease-in-out infinite;
+        }
+        @keyframes antennaPulse {
+            0%, 100% { opacity: 1; box-shadow: 0 0 12px var(--accent-1), 0 0 24px rgba(129,140,248,0.3); }
+            50% { opacity: 0.6; box-shadow: 0 0 6px var(--accent-1), 0 0 12px rgba(129,140,248,0.15); }
+        }
+
+        /* Eyes */
+        .eyes {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            margin-top: 22px;
+            position: relative;
+            z-index: 1;
+        }
+        .eye {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--accent-1);
+            box-shadow: 0 0 16px var(--accent-1), 0 0 32px rgba(129,140,248,0.25);
+            animation: blink 4s ease-in-out infinite;
+        }
+        .eye:nth-child(2) { animation-delay: 0.1s; }
+        @keyframes blink {
+            0%, 42%, 48%, 100% { transform: scaleY(1); }
+            45% { transform: scaleY(0.1); }
+        }
+
+        /* Mouth */
+        .mouth {
+            width: 24px;
+            height: 3px;
+            background: rgba(129,140,248,0.25);
+            border-radius: 2px;
+            margin: 10px auto 0;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Body */
+        .robot-body {
+            width: 56px;
+            height: 40px;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16162a 100%);
+            border: 2px solid rgba(129,140,248,0.2);
+            border-radius: 8px 8px 12px 12px;
+            position: absolute;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        .robot-body::before {
+            content: '';
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 2px solid rgba(129,140,248,0.2);
+            background: rgba(129,140,248,0.05);
+        }
+
+        /* Arms */
+        .arm {
+            position: absolute;
+            width: 8px;
+            height: 28px;
+            background: linear-gradient(180deg, #1a1a2e, #12122a);
+            border: 1.5px solid rgba(129,140,248,0.2);
+            border-radius: 4px;
+            bottom: 24px;
+        }
+        .arm-l {
+            left: 10px;
+            transform-origin: top center;
+            animation: armSwing 3s ease-in-out infinite;
+        }
+        .arm-r {
+            right: 10px;
+            transform-origin: top center;
+            animation: armSwing 3s ease-in-out infinite reverse;
+        }
+        @keyframes armSwing {
+            0%, 100% { transform: rotate(-5deg); }
+            50% { transform: rotate(5deg); }
+        }
+
+        /* Feet */
+        .feet {
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+        }
+        .foot {
+            width: 18px;
+            height: 8px;
+            background: #1a1a2e;
+            border: 1.5px solid rgba(129,140,248,0.2);
+            border-radius: 4px 4px 6px 6px;
+        }
+
+        /* ── Hero section ── */
+        .hero {
+            text-align: center;
+            margin-bottom: 4rem;
+            animation: rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+        @keyframes rise {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .hero .logo-text {
+            font-family: 'Syne', sans-serif;
+            font-weight: 800;
+            font-size: 2.75rem;
+            letter-spacing: -0.03em;
+            background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-2) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero .badge {
+            display: inline-block;
+            font-family: 'Syne', sans-serif;
+            font-size: 0.6rem;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--accent-2);
+            border: 1px solid rgba(167,139,250,0.25);
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-left: 8px;
+            vertical-align: super;
+        }
+        .hero .tagline {
+            margin-top: 1rem;
+            font-size: 1.1rem;
+            line-height: 1.7;
+            color: var(--text-secondary);
+            max-width: 560px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .hero-buttons {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .btn-primary {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.85rem 2rem;
+            background: linear-gradient(135deg, var(--accent-1), var(--accent-3));
+            color: white;
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 500;
+            font-size: 0.95rem;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(129,140,248,0.3);
+        }
+        .btn-primary:active { transform: translateY(0); }
+
+        .btn-ghost {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.85rem 2rem;
+            background: transparent;
+            color: var(--text-secondary);
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 500;
+            font-size: 0.95rem;
+            border: 1px solid var(--border-bright);
+            border-radius: 12px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .btn-ghost:hover {
+            transform: translateY(-2px);
+            border-color: var(--accent-2);
+            color: var(--text-primary);
+        }
+        .btn-ghost:active { transform: translateY(0); }
+
+        /* ── Section titles ── */
+        .section-label {
+            font-family: 'Syne', sans-serif;
+            font-weight: 600;
+            font-size: 0.75rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-tertiary);
+            text-align: center;
+            margin-bottom: 1.25rem;
+        }
+
+        .section-title {
+            font-family: 'Syne', sans-serif;
+            font-weight: 700;
+            font-size: 1.5rem;
+            text-align: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .section-sub {
+            text-align: center;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+            max-width: 560px;
+            margin-left: auto;
+            margin-right: auto;
+            line-height: 1.6;
+        }
+
+        /* ── How It Works — 4-step grid ── */
+        .steps-section {
+            margin-bottom: 4rem;
+        }
+
+        .steps-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.75rem;
+        }
+
+        .step {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.25rem;
+            transition: border-color 0.3s, transform 0.3s;
+        }
+        .step:hover {
+            border-color: var(--border-bright);
+            transform: translateY(-3px);
+        }
+
+        .step-num {
+            font-family: 'Syne', sans-serif;
+            font-weight: 700;
+            font-size: 0.7rem;
+            color: var(--accent-2);
+            margin-bottom: 0.5rem;
+        }
+
+        .step-title {
+            font-family: 'Syne', sans-serif;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 0.4rem;
+        }
+
+        .step-text {
+            font-size: 0.78rem;
+            line-height: 1.55;
+            color: var(--text-secondary);
+        }
+
+        /* ── Glass card ── */
+        .glass-card {
+            background: var(--surface);
+            backdrop-filter: blur(40px) saturate(1.2);
+            -webkit-backdrop-filter: blur(40px) saturate(1.2);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 2.5rem;
+            transition: border-color 0.3s;
+            margin-bottom: 4rem;
+        }
+        .glass-card:hover {
+            border-color: var(--border-bright);
+        }
+
+        .card-title {
+            font-family: 'Syne', sans-serif;
+            font-weight: 600;
+            font-size: 1.25rem;
+            text-align: center;
+            margin-bottom: 0.35rem;
+        }
+        .card-sub {
+            text-align: center;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+            line-height: 1.5;
+        }
+
+        /* ── Code block ── */
+        .code-block {
+            background: rgba(0,0,0,0.4);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 1.5rem;
+            overflow-x: auto;
+            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+            font-size: 0.8rem;
+            line-height: 1.7;
+            color: var(--text-secondary);
+            position: relative;
+        }
+        .code-block .code-lang {
+            position: absolute;
+            top: 0.75rem;
+            right: 0.75rem;
+            font-family: 'Syne', sans-serif;
+            font-size: 0.6rem;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--text-tertiary);
+        }
+        .code-block .ck { color: var(--accent-1); }
+        .code-block .cs { color: #a5d6a7; }
+        .code-block .cv { color: #ffcc80; }
+        .code-block .cm { color: var(--text-tertiary); }
+
+        .code-actions {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 1.25rem;
+            flex-wrap: wrap;
+        }
+
+        .btn-copy {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.6rem 1.5rem;
+            background: var(--surface-hover);
+            color: var(--text-primary);
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 500;
+            font-size: 0.82rem;
+            border: 1px solid var(--border-bright);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.25s;
+        }
+        .btn-copy:hover {
+            background: rgba(255,255,255,0.08);
+            border-color: var(--accent-2);
+        }
+
+        .code-note {
+            font-size: 0.78rem;
+            color: var(--text-tertiary);
+            text-align: center;
+            margin-top: 1rem;
+            line-height: 1.6;
+        }
+        .code-note code {
+            background: rgba(255,255,255,0.05);
+            padding: 0.15rem 0.45rem;
+            border-radius: 5px;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.75rem;
+            color: var(--accent-2);
+        }
+
+        /* ── Env var cards (2-col grid) ── */
+        .env-section {
+            margin-bottom: 4rem;
+        }
+        .env-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+        .env-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 1.15rem 1.25rem;
+            transition: border-color 0.3s, transform 0.3s;
+        }
+        .env-card:hover {
+            border-color: var(--border-bright);
+            transform: translateY(-2px);
+        }
+        .env-card-name {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.75rem;
+            color: var(--accent-1);
+            margin-bottom: 0.4rem;
+            word-break: break-all;
+        }
+        .env-card-desc {
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            margin-bottom: 0.5rem;
+        }
+        .env-card-badge {
+            display: inline-block;
+            font-family: 'Syne', sans-serif;
+            font-size: 0.6rem;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+        .env-card-badge.required {
+            color: var(--accent-1);
+            border: 1px solid rgba(129,140,248,0.25);
+        }
+        .env-card-badge.optional {
+            color: var(--text-tertiary);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+
+        /* ── Tool cards ── */
+        .tools-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        .tool-card {
+            background: rgba(0,0,0,0.2);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 1.25rem 1.5rem;
+            transition: border-color 0.3s, transform 0.3s;
+        }
+        .tool-card:hover {
+            border-color: var(--border-bright);
+            transform: translateY(-2px);
+        }
+        .tool-card-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.5rem;
+            flex-wrap: wrap;
+        }
+        .tool-card-name {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.85rem;
+            color: var(--accent-2);
+            font-weight: 500;
+        }
+        .tool-card-desc {
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            line-height: 1.55;
+            margin-bottom: 0.65rem;
+        }
+        .tool-card-params {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+        }
+        .param-tag {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.65rem;
+            color: var(--text-tertiary);
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border);
+            padding: 2px 8px;
+            border-radius: 5px;
+        }
+
+        /* ── Override / example cards ── */
+        .override-section {
+            margin-bottom: 4rem;
+        }
+        .override-scroll {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.75rem;
+        }
+        .override-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.25rem 1.35rem;
+            transition: border-color 0.3s, transform 0.3s;
+        }
+        .override-card:hover {
+            border-color: var(--border-bright);
+            transform: translateY(-3px);
+        }
+        .override-card-title {
+            font-family: 'Syne', sans-serif;
+            font-weight: 600;
+            font-size: 0.95rem;
+            margin-bottom: 0.85rem;
+            color: var(--text-primary);
+        }
+        .override-card-field {
+            margin-bottom: 0.65rem;
+        }
+        .override-card-label {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.65rem;
+            color: var(--accent-1);
+            margin-bottom: 0.25rem;
+            display: block;
+        }
+        .override-card-value {
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        /* ── CTA + Footer ── */
+        .cta-section {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+        .cta-section .section-title {
+            margin-bottom: 1.5rem;
+        }
+
+        .footer {
+            text-align: center;
+            font-size: 0.7rem;
+            color: var(--text-tertiary);
+            letter-spacing: 0.02em;
+            padding-bottom: 1rem;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 768px) {
+            .steps-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            .env-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            .override-scroll {
+                grid-template-columns: 1fr;
+                overflow-x: auto;
+            }
+            .hero .logo-text {
+                font-size: 2.2rem;
+            }
+            .hero .tagline {
+                font-size: 1rem;
+            }
+            .glass-card {
+                padding: 1.75rem;
+            }
+        }
+
+        @media (max-width: 540px) {
+            .steps-grid {
+                grid-template-columns: 1fr;
+            }
+            .env-grid {
+                grid-template-columns: 1fr;
+            }
+            .hero .logo-text {
+                font-size: 1.8rem;
+            }
+            .hero .tagline {
+                font-size: 0.92rem;
+            }
+            .hero-buttons {
+                flex-direction: column;
+            }
+            .hero-buttons a {
+                width: 100%;
+                justify-content: center;
+            }
+            .robot {
+                transform: scale(0.85);
+            }
+            .glass-card {
+                padding: 1.5rem;
+            }
+            .code-block {
+                padding: 1rem;
+                font-size: 0.7rem;
+            }
+            .override-scroll {
+                grid-template-columns: 1fr;
+            }
+            .section-title {
+                font-size: 1.25rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Ambient background -->
+    <div class="ambient">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+    <div class="grain"></div>
+
+    <div class="page">
+        <div class="content">
+
+            <!-- ═══════════════════════════════════════ -->
+            <!--  1. Hero Section                       -->
+            <!-- ═══════════════════════════════════════ -->
+            <section class="hero">
+                <!-- Robot mascot -->
+                <div class="robot-wrap">
+                    <div class="robot">
+                        <div class="antenna"></div>
+                        <div class="robot-head">
+                            <div class="eyes">
+                                <div class="eye"></div>
+                                <div class="eye"></div>
+                            </div>
+                            <div class="mouth"></div>
+                        </div>
+                        <div class="arm arm-l"></div>
+                        <div class="arm arm-r"></div>
+                        <div class="robot-body"></div>
+                        <div class="feet">
+                            <div class="foot"></div>
+                            <div class="foot"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <span class="logo-text">Social Agents</span>
+                    <span class="badge">MCP</span>
+                </div>
+                <p class="tagline">Post to Twitter &amp; LinkedIn from any AI agent. Plug into Claude Code, Claude Desktop, or any MCP client in 3 minutes.</p>
+
+                <div class="hero-buttons">
+                    <a href="/login" class="btn-primary">Get Started <span>&rarr;</span></a>
+                    <a href="https://github.com/DevanshuBrahmbhatt/Social-agents" target="_blank" rel="noopener" class="btn-ghost">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+                        <span>View on GitHub</span>
+                        <span>&rarr;</span>
+                    </a>
+                </div>
+            </section>
+
+            <!-- ═══════════════════════════════════════ -->
+            <!--  2. How It Works                       -->
+            <!-- ═══════════════════════════════════════ -->
+            <section class="steps-section reveal">
+                <p class="section-label">How it works</p>
+                <div class="steps-grid">
+                    <div class="step">
+                        <div class="step-num">01</div>
+                        <div class="step-title">Create Account</div>
+                        <div class="step-text">Sign in with X/Twitter. Connect your LinkedIn. Your credentials stay yours.</div>
+                    </div>
+                    <div class="step">
+                        <div class="step-num">02</div>
+                        <div class="step-title">Add API Keys</div>
+                        <div class="step-text">Bring your own Anthropic &amp; Perplexity keys. We never store or proxy them.</div>
+                    </div>
+                    <div class="step">
+                        <div class="step-num">03</div>
+                        <div class="step-title">Generate API Key</div>
+                        <div class="step-text">Create your personal API key from the dashboard. This authenticates MCP requests.</div>
+                    </div>
+                    <div class="step">
+                        <div class="step-num">04</div>
+                        <div class="step-title">Plug &amp; Play</div>
+                        <div class="step-text">Add the MCP config to Claude Code or Claude Desktop. Start posting from any AI workflow.</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ═══════════════════════════════════════ -->
+            <!--  3. MCP Server Setup                   -->
+            <!-- ═══════════════════════════════════════ -->
+            <section class="reveal">
+                <div class="glass-card">
+                    <h2 class="card-title">MCP Server Configuration</h2>
+                    <p class="card-sub">Add this to your Claude Code or Claude Desktop config</p>
+
+                    <div class="code-block">
+                        <span class="code-lang">JSON</span>
+<pre>{
+  <span class="ck">"mcpServers"</span>: {
+    <span class="ck">"social-agents"</span>: {
+      <span class="ck">"command"</span>: <span class="cs">"python"</span>,
+      <span class="ck">"args"</span>: [<span class="cs">"/path/to/Social-agents/mcp_server.py"</span>],
+      <span class="ck">"env"</span>: {
+        <span class="ck">"SOCIAL_AGENTS_URL"</span>: <span class="cs">"https://twitter.dagent.shop"</span>,
+        <span class="ck">"SOCIAL_AGENTS_API_KEY"</span>: <span class="cv">"your-api-key-from-dashboard"</span>
+      }
+    }
+  }
+}</pre>
+                    </div>
+
+                    <div class="code-actions">
+                        <button class="btn-copy" id="copyConfigBtn" onclick="copyConfig()">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                            <span>Copy Config</span>
+                        </button>
+                    </div>
+
+                    <p class="code-note">
+                        Install: <code>pip install mcp httpx</code> &mdash; Download <code>mcp_server.py</code> from the repo
+                    </p>
+                </div>
+            </section>
+
+            <!-- ═══════════════════════════════════════ -->
+            <!--  4. Environment Variables               -->
+            <!-- ═══════════════════════════════════════ -->
+            <section class="env-section reveal">
+                <h2 class="section-title">What You'll Need</h2>
+                <p class="section-sub">API keys and credentials to get your agent running</p>
+
+                <div class="env-grid">
+                    <div class="env-card">
+                        <div class="env-card-name">SOCIAL_AGENTS_API_KEY</div>
+                        <div class="env-card-desc">Dashboard &rarr; Generate API Key</div>
+                        <span class="env-card-badge required">Required</span>
+                    </div>
+                    <div class="env-card">
+                        <div class="env-card-name">Twitter API Key + Secret</div>
+                        <div class="env-card-desc">developer.x.com</div>
+                        <span class="env-card-badge required">Required for Twitter</span>
+                    </div>
+                    <div class="env-card">
+                        <div class="env-card-name">Twitter Access Token + Secret</div>
+                        <div class="env-card-desc">developer.x.com</div>
+                        <span class="env-card-badge required">Required for Twitter</span>
+                    </div>
+                    <div class="env-card">
+                        <div class="env-card-name">LinkedIn</div>
+                        <div class="env-card-desc">Connect via Dashboard (OAuth)</div>
+                        <span class="env-card-badge optional">Optional</span>
+                    </div>
+                    <div class="env-card">
+                        <div class="env-card-name">Anthropic API Key</div>
+                        <div class="env-card-desc">console.anthropic.com</div>
+                        <span class="env-card-badge required">Required for AI</span>
+                    </div>
+                    <div class="env-card">
+                        <div class="env-card-name">Perplexity API Key</div>
+                        <div class="env-card-desc">perplexity.ai</div>
+                        <span class="env-card-badge optional">Optional</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ═══════════════════════════════════════ -->
+            <!--  5. Available Tools                     -->
+            <!-- ═══════════════════════════════════════ -->
+            <section class="reveal">
+                <div class="glass-card">
+                    <h2 class="card-title">MCP Tools</h2>
+                    <p class="card-sub">These tools are available once you connect</p>
+
+                    <div class="tools-list">
+                        <div class="tool-card">
+                            <div class="tool-card-header">
+                                <span class="tool-card-name">post_content</span>
+                            </div>
+                            <div class="tool-card-desc">Post to Twitter and/or LinkedIn with full control. Supports custom audience targeting and prompt overrides.</div>
+                            <div class="tool-card-params">
+                                <span class="param-tag">tweet_text</span>
+                                <span class="param-tag">linkedin_text</span>
+                                <span class="param-tag">target_audience</span>
+                                <span class="param-tag">custom_prompt</span>
+                            </div>
+                        </div>
+
+                        <div class="tool-card">
+                            <div class="tool-card-header">
+                                <span class="tool-card-name">post_tweet</span>
+                            </div>
+                            <div class="tool-card-desc">Quick tweet. Just the text, nothing else.</div>
+                            <div class="tool-card-params">
+                                <span class="param-tag">text</span>
+                            </div>
+                        </div>
+
+                        <div class="tool-card">
+                            <div class="tool-card-header">
+                                <span class="tool-card-name">post_to_all</span>
+                            </div>
+                            <div class="tool-card-desc">Post to both Twitter and LinkedIn simultaneously.</div>
+                            <div class="tool-card-params">
+                                <span class="param-tag">tweet_text</span>
+                                <span class="param-tag">linkedin_text</span>
+                            </div>
+                        </div>
+
+                        <div class="tool-card">
+                            <div class="tool-card-header">
+                                <span class="tool-card-name">generate_and_post</span>
+                            </div>
+                            <div class="tool-card-desc">Let the AI reasoning engine pick a trending story, generate content, and post it.</div>
+                            <div class="tool-card-params">
+                                <span class="param-tag">target_audience</span>
+                                <span class="param-tag">custom_prompt</span>
+                                <span class="param-tag">platforms</span>
+                            </div>
+                        </div>
+
+                        <div class="tool-card">
+                            <div class="tool-card-header">
+                                <span class="tool-card-name">generate_preview</span>
+                            </div>
+                            <div class="tool-card-desc">Generate a post preview without actually posting. Review before you publish.</div>
+                            <div class="tool-card-params">
+                                <span class="param-tag">target_audience</span>
+                                <span class="param-tag">custom_prompt</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ═══════════════════════════════════════ -->
+            <!--  6. Override Prompts                    -->
+            <!-- ═══════════════════════════════════════ -->
+            <section class="override-section reveal">
+                <h2 class="section-title">Custom Audience &amp; Prompt Overrides</h2>
+                <p class="section-sub">The default agent writes for early-stage founders and VCs. Override it for YOUR audience.</p>
+
+                <div class="override-scroll">
+                    <div class="override-card">
+                        <div class="override-card-title">For Teachers</div>
+                        <div class="override-card-field">
+                            <span class="override-card-label">target_audience</span>
+                            <div class="override-card-value">K-12 teachers and education technologists</div>
+                        </div>
+                        <div class="override-card-field">
+                            <span class="override-card-label">custom_prompt</span>
+                            <div class="override-card-value">Write about how this technology can be used in classrooms. Focus on practical lesson plan ideas and student engagement.</div>
+                        </div>
+                    </div>
+
+                    <div class="override-card">
+                        <div class="override-card-title">For Government/Policy</div>
+                        <div class="override-card-field">
+                            <span class="override-card-label">target_audience</span>
+                            <div class="override-card-value">Government officials and policy makers</div>
+                        </div>
+                        <div class="override-card-field">
+                            <span class="override-card-label">custom_prompt</span>
+                            <div class="override-card-value">Analyze the regulatory implications. Focus on public interest and citizen impact.</div>
+                        </div>
+                    </div>
+
+                    <div class="override-card">
+                        <div class="override-card-title">For Developers</div>
+                        <div class="override-card-field">
+                            <span class="override-card-label">target_audience</span>
+                            <div class="override-card-value">Full-stack developers and DevOps engineers</div>
+                        </div>
+                        <div class="override-card-field">
+                            <span class="override-card-label">custom_prompt</span>
+                            <div class="override-card-value">Focus on the technical architecture and developer experience. Include code examples where relevant.</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ═══════════════════════════════════════ -->
+            <!--  7. CTA + Footer                       -->
+            <!-- ═══════════════════════════════════════ -->
+            <section class="cta-section reveal">
+                <h2 class="section-title">Ready to start?</h2>
+                <a href="/login" class="btn-primary">Get Started <span>&rarr;</span></a>
+            </section>
+
+            <footer class="footer">
+                Social Agents v2 &mdash; Built by Devanshu Brahmbhatt
+            </footer>
+
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════ -->
+    <!--  Scripts                                -->
+    <!-- ═══════════════════════════════════════ -->
+    <script>
+        // Copy MCP config to clipboard
+        function copyConfig() {
+            const config = JSON.stringify({
+                mcpServers: {
+                    "social-agents": {
+                        command: "python",
+                        args: ["/path/to/Social-agents/mcp_server.py"],
+                        env: {
+                            SOCIAL_AGENTS_URL: "https://twitter.dagent.shop",
+                            SOCIAL_AGENTS_API_KEY: "your-api-key-from-dashboard"
+                        }
+                    }
+                }
+            }, null, 2);
+
+            navigator.clipboard.writeText(config).then(function() {
+                var btn = document.getElementById('copyConfigBtn');
+                var original = btn.innerHTML;
+                btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> <span>Copied!</span>';
+                btn.style.borderColor = 'var(--accent-1)';
+                setTimeout(function() {
+                    btn.innerHTML = original;
+                    btn.style.borderColor = '';
+                }, 2000);
+            });
+        }
+
+        // Scroll-reveal via IntersectionObserver
+        (function() {
+            var reveals = document.querySelectorAll('.reveal');
+            if ('IntersectionObserver' in window) {
+                var observer = new IntersectionObserver(function(entries) {
+                    entries.forEach(function(entry) {
+                        if (entry.isIntersecting) {
+                            entry.target.classList.add('visible');
+                            observer.unobserve(entry.target);
+                        }
+                    });
+                }, {
+                    threshold: 0.1,
+                    rootMargin: '0px 0px -40px 0px'
+                });
+                reveals.forEach(function(el) {
+                    observer.observe(el);
+                });
+            } else {
+                // Fallback: show everything immediately
+                reveals.forEach(function(el) {
+                    el.classList.add('visible');
+                });
+            }
+        })();
+    </script>
+
+</body>
+</html>

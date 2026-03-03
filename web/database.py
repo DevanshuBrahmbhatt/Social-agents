@@ -43,6 +43,9 @@ class User(Base):
     linkedin_person_urn = Column(String, nullable=True)  # "sub" ID from LinkedIn userinfo
     linkedin_name = Column(String, nullable=True)  # Display name from LinkedIn
 
+    # Personal API key for MCP/external access
+    mcp_api_key = Column(String, nullable=True, unique=True)
+
     # Role
     is_owner = Column(Boolean, default=False)
 
@@ -124,6 +127,7 @@ def upgrade_db():
         ("linkedin_token_expires_at", "TEXT"),
         ("linkedin_person_urn", "TEXT"),
         ("linkedin_name", "TEXT"),
+        ("mcp_api_key", "TEXT"),
     ]
 
     for col_name, col_type in new_columns:

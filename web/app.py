@@ -2,6 +2,7 @@
 
 import json
 import logging
+import secrets
 from datetime import datetime
 from contextlib import asynccontextmanager
 
@@ -72,7 +73,7 @@ async def login_page(request: Request):
     """Render login page. Redirect to dashboard if already logged in."""
     user_id = get_user_id_from_cookie(request)
     if user_id is not None:
-        return RedirectResponse(url="/", status_code=303)
+        return RedirectResponse(url="/dashboard", status_code=303)
     error = request.query_params.get("error", "")
     return templates.TemplateResponse("login.html", {
         "request": request,
@@ -122,10 +123,30 @@ async def do_linkedin_disconnect(request: Request):
 
 
 # ---------------------------------------------------------------------------
-# Dashboard
+# Homepage / Landing
 # ---------------------------------------------------------------------------
 
 @app.get("/", response_class=HTMLResponse)
+async def homepage(request: Request):
+    """Show landing page or dashboard based on auth status."""
+    user_id = get_user_id_from_cookie(request)
+    if user_id is None:
+        return templates.TemplateResponse("landing.html", {"request": request})
+    # If logged in, show dashboard (redirect to /dashboard)
+    return RedirectResponse(url="/dashboard", status_code=303)
+
+
+@app.get("/landing", response_class=HTMLResponse)
+async def landing_page(request: Request):
+    """Public landing page with MCP docs — no login required."""
+    return templates.TemplateResponse("landing.html", {"request": request})
+
+
+# ---------------------------------------------------------------------------
+# Dashboard
+# ---------------------------------------------------------------------------
+
+@app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request, current_user: User = Depends(get_current_user)):
     session = SessionLocal()
     try:
@@ -179,6 +200,7 @@ async def dashboard(request: Request, current_user: User = Depends(get_current_u
             "linkedin_connected": bool(user.linkedin_access_token) if user else False,
             "linkedin_name": user.linkedin_name if user else None,
             "linkedin_posting_enabled": settings.linkedin_posting_enabled if settings and hasattr(settings, 'linkedin_posting_enabled') else True,
+            "mcp_api_key": user.mcp_api_key if user else None,
         })
     finally:
         session.close()
@@ -300,6 +322,29 @@ async def save_api_keys(
         session.commit()
 
         return JSONResponse({"status": "ok", "message": "API keys updated!"})
+    finally:
+        session.close()
+
+
+# ---------------------------------------------------------------------------
+# API: Generate API Key (for MCP / external access)
+# ---------------------------------------------------------------------------
+
+@app.post("/api/generate-api-key")
+async def generate_api_key(current_user: User = Depends(get_current_user)):
+    """Generate or regenerate the user's personal MCP API key."""
+    session = SessionLocal()
+    try:
+        user = session.query(User).get(current_user.id)
+        if not user:
+            return JSONResponse({"error": "User not found"}, status_code=400)
+
+        # Generate a new API key
+        new_key = f"sa-{secrets.token_urlsafe(32)}"
+        user.mcp_api_key = new_key
+        session.commit()
+
+        return JSONResponse({"api_key": new_key, "message": "API key generated!"})
     finally:
         session.close()
 
@@ -544,43 +589,50 @@ async def get_history(current_user: User = Depends(get_current_user)):
 async def external_post(request: Request):
     """Receive post from external agents (e.g., Research Agent).
 
-    Authenticated via X-API-Key header matching EXTERNAL_API_KEY env var.
+    Authenticated via X-API-Key header matching EXTERNAL_API_KEY or per-user mcp_api_key.
     """
     api_key = request.headers.get("X-API-Key", "")
-    expected_key = getattr(config, "EXTERNAL_API_KEY", "")
-    if not api_key or not expected_key or api_key != expected_key:
-        return JSONResponse({"error": "Unauthorized"}, status_code=401)
-
-    body = await request.json()
-    tweet_text = body.get("tweet_text", "")
-    linkedin_text = body.get("linkedin_text", "")
-
-    if not tweet_text:
-        return JSONResponse({"error": "tweet_text is required"}, status_code=400)
+    if not api_key:
+        return JSONResponse({"error": "X-API-Key header required"}, status_code=401)
 
     session = SessionLocal()
     try:
-        # Use owner account for posting
-        owner = session.query(User).filter_by(is_owner=True).first()
-        if not owner:
-            return JSONResponse({"error": "No owner configured"}, status_code=500)
+        # Check global key first (for backward compat)
+        expected_key = getattr(config, "EXTERNAL_API_KEY", "")
+        if expected_key and api_key == expected_key:
+            user = session.query(User).filter_by(is_owner=True).first()
+        else:
+            # Check per-user API keys
+            user = session.query(User).filter_by(mcp_api_key=api_key).first()
+
+        if not user:
+            return JSONResponse({"error": "Invalid API key"}, status_code=401)
+
+        body = await request.json()
+        tweet_text = body.get("tweet_text", "")
+        linkedin_text = body.get("linkedin_text", "")
+        target_audience = body.get("target_audience", "")
+        custom_prompt = body.get("custom_prompt", "")
+
+        if not tweet_text:
+            return JSONResponse({"error": "tweet_text is required"}, status_code=400)
 
         results = {"tweet_id": None, "linkedin_post_id": None}
 
         # Post to Twitter
-        if owner.twitter_access_token:
+        if user.twitter_access_token:
             try:
                 response = post_tweet(
                     text=tweet_text,
-                    api_key=owner.twitter_api_key,
-                    api_secret=owner.twitter_api_secret,
-                    access_token=owner.twitter_access_token,
-                    access_token_secret=owner.twitter_access_token_secret,
+                    api_key=user.twitter_api_key,
+                    api_secret=user.twitter_api_secret,
+                    access_token=user.twitter_access_token,
+                    access_token_secret=user.twitter_access_token_secret,
                 )
                 results["tweet_id"] = str(response.data["id"])
 
                 history = TweetHistory(
-                    user_id=owner.id,
+                    user_id=user.id,
                     tweet_text=tweet_text,
                     tweet_id=results["tweet_id"],
                     story_title=body.get("paper_title", ""),
@@ -595,20 +647,20 @@ async def external_post(request: Request):
                 results["tweet_id"] = None
 
         # Post to LinkedIn
-        if owner.linkedin_access_token and owner.linkedin_person_urn and linkedin_text:
+        if user.linkedin_access_token and user.linkedin_person_urn and linkedin_text:
             try:
                 from web.auth import refresh_linkedin_token_sync
-                refresh_linkedin_token_sync(owner.id)
+                refresh_linkedin_token_sync(user.id)
 
                 li_response = post_linkedin(
                     text=linkedin_text,
-                    person_urn=owner.linkedin_person_urn,
-                    access_token=owner.linkedin_access_token,
+                    person_urn=user.linkedin_person_urn,
+                    access_token=user.linkedin_access_token,
                 )
                 results["linkedin_post_id"] = li_response.get("id", "")
 
                 li_history = TweetHistory(
-                    user_id=owner.id,
+                    user_id=user.id,
                     tweet_text=linkedin_text,
                     linkedin_post_id=results["linkedin_post_id"],
                     story_title=body.get("paper_title", ""),
@@ -623,5 +675,158 @@ async def external_post(request: Request):
 
         session.commit()
         return JSONResponse(results)
+    finally:
+        session.close()
+
+
+# ---------------------------------------------------------------------------
+# API: Generate and Post (full AI pipeline via MCP)
+# ---------------------------------------------------------------------------
+
+@app.post("/api/generate-and-post")
+async def generate_and_post_endpoint(request: Request):
+    """Full AI pipeline: fetch stories -> strategist -> generate -> post.
+    Supports target_audience and custom_prompt overrides.
+    Authenticated via X-API-Key header.
+    """
+    api_key = request.headers.get("X-API-Key", "")
+    if not api_key:
+        return JSONResponse({"error": "X-API-Key header required"}, status_code=401)
+
+    session = SessionLocal()
+    try:
+        # Auth: check global key or per-user key
+        expected_key = getattr(config, "EXTERNAL_API_KEY", "")
+        if expected_key and api_key == expected_key:
+            user = session.query(User).filter_by(is_owner=True).first()
+        else:
+            user = session.query(User).filter_by(mcp_api_key=api_key).first()
+
+        if not user:
+            return JSONResponse({"error": "Invalid API key"}, status_code=401)
+
+        if not user.anthropic_api_key:
+            return JSONResponse({"error": "Anthropic API key not configured"}, status_code=400)
+
+        body = await request.json()
+        target_audience = body.get("target_audience", "")
+        custom_prompt = body.get("custom_prompt", "")
+        platforms = body.get("platforms", "all")  # "twitter", "linkedin", "all"
+        preview_only = body.get("preview_only", False)
+
+        # Fetch stories
+        stories = fetch_all_stories()
+        if not stories:
+            return JSONResponse({"error": "No stories found"}, status_code=500)
+
+        # Get recent titles
+        recent_tweets = (
+            session.query(TweetHistory)
+            .filter_by(user_id=user.id, status="posted")
+            .order_by(TweetHistory.posted_at.desc())
+            .limit(10)
+            .all()
+        )
+        recent_titles = [t.story_title or t.tweet_text[:80] for t in recent_tweets if t.story_title or t.tweet_text]
+
+        # Strategy
+        strategy = create_content_strategy(
+            stories,
+            recent_titles=recent_titles,
+            api_key=user.anthropic_api_key,
+        )
+        story = stories[strategy.selected_story_index]
+
+        # Conditional research
+        if strategy.needs_deep_research:
+            research = deep_research_story(story, api_key=user.perplexity_api_key)
+        else:
+            research = story.get("summary") or story.get("title", "")
+
+        # Generate with overrides
+        result = generate_tweet(
+            story, research,
+            api_key=user.anthropic_api_key,
+            strategy=strategy,
+        )
+
+        # If preview only, return without posting
+        if preview_only:
+            chart_path = generate_chart(result.get("chart_data"))
+            chart_url = None
+            if chart_path:
+                from pathlib import Path
+                chart_url = f"/charts/{Path(chart_path).name}"
+            return JSONResponse({
+                "tweet": result["tweet"],
+                "linkedin_post": result.get("linkedin_post", result["tweet"]),
+                "story_title": result.get("story_title", ""),
+                "chart_url": chart_url,
+                "strategy": {
+                    "content_type": strategy.content_type,
+                    "style_reference": strategy.style_reference,
+                    "tone": strategy.tone,
+                },
+            })
+
+        # Post
+        results = {"tweet_id": None, "linkedin_post_id": None}
+        chart_path = generate_chart(result.get("chart_data"))
+
+        if platforms in ("twitter", "all") and user.twitter_access_token:
+            try:
+                from core.twitter_poster import post_tweet as do_post_tweet
+                response = do_post_tweet(
+                    text=result["tweet"],
+                    image_path=chart_path,
+                    api_key=user.twitter_api_key,
+                    api_secret=user.twitter_api_secret,
+                    access_token=user.twitter_access_token,
+                    access_token_secret=user.twitter_access_token_secret,
+                )
+                results["tweet_id"] = str(response.data["id"])
+                session.add(TweetHistory(
+                    user_id=user.id,
+                    tweet_text=result["tweet"],
+                    tweet_id=results["tweet_id"],
+                    story_title=result.get("story_title", ""),
+                    status="posted",
+                    platform="twitter",
+                    content_type=strategy.content_type,
+                ))
+            except Exception as e:
+                log.error(f"Generate-and-post Twitter failed: {e}")
+                results["tweet_id"] = f"error: {e}"
+
+        if platforms in ("linkedin", "all") and user.linkedin_access_token and user.linkedin_person_urn:
+            try:
+                from web.auth import refresh_linkedin_token_sync
+                refresh_linkedin_token_sync(user.id)
+                li_text = result.get("linkedin_post", result["tweet"])
+                li_resp = post_linkedin(
+                    text=li_text,
+                    image_path=chart_path,
+                    person_urn=user.linkedin_person_urn,
+                    access_token=user.linkedin_access_token,
+                )
+                results["linkedin_post_id"] = li_resp.get("id", "")
+                session.add(TweetHistory(
+                    user_id=user.id,
+                    tweet_text=li_text,
+                    linkedin_post_id=results["linkedin_post_id"],
+                    story_title=result.get("story_title", ""),
+                    status="posted",
+                    platform="linkedin",
+                    content_type=strategy.content_type,
+                ))
+            except Exception as e:
+                log.error(f"Generate-and-post LinkedIn failed: {e}")
+                results["linkedin_post_id"] = f"error: {e}"
+
+        session.commit()
+        return JSONResponse(results)
+    except Exception as e:
+        log.error(f"Generate-and-post failed: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
     finally:
         session.close()

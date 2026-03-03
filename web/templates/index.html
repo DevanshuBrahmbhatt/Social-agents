@@ -747,25 +747,34 @@
             </div>
             {% endif %}
 
-            <!-- ══ AGENT MCP SERVER (owner only) ══ -->
-            {% if user.is_owner %}
+            <!-- ══ AGENT MCP SERVER (all users) ══ -->
             <div class="glass fade-up">
                 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
                     <div>
-                        <h2 class="section-title">Agent MCP Server</h2>
-                        <p class="section-sub">Connect other AI agents or Claude Code to post via this platform</p>
+                        <h2 class="section-title">MCP Server &amp; API</h2>
+                        <p class="section-sub">Connect Claude Code, Claude Desktop, or any MCP client to post via this platform</p>
                     </div>
                     <span class="badge badge-brand">API</span>
                 </div>
 
-                <!-- REST API -->
-                <div style="margin-bottom:1.5rem;">
-                    <p class="label">REST API Endpoint</p>
-                    <div style="background:rgba(0,0,0,0.3); border-radius:10px; padding:0.75rem 1rem; font-family:'DM Sans',monospace; font-size:0.78rem; color:var(--accent); position:relative;">
-                        <code>POST {{ request.url.scheme }}://{{ request.url.netloc }}/api/external-post</code>
-                        <button onclick="navigator.clipboard.writeText('{{ request.url.scheme }}://{{ request.url.netloc }}/api/external-post');toast('Copied!')" style="position:absolute; right:0.75rem; top:50%; transform:translateY(-50%); background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:6px; padding:0.25rem 0.5rem; color:var(--text-2); cursor:pointer; font-size:0.65rem;" title="Copy">Copy</button>
+                <!-- API Key Generation -->
+                <div style="margin-bottom:1.5rem; background:rgba(129,140,248,0.04); border:1px solid rgba(129,140,248,0.12); border-radius:12px; padding:1rem 1.25rem;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap;">
+                        <div style="flex:1; min-width:200px;">
+                            <p class="label" style="margin-bottom:0.25rem; font-weight:500; color:var(--accent);">Your API Key</p>
+                            {% if mcp_api_key %}
+                            <div style="display:flex; align-items:center; gap:0.5rem;">
+                                <code id="apiKeyDisplay" style="font-size:0.75rem; color:var(--text-2); background:rgba(0,0,0,0.3); padding:0.35rem 0.6rem; border-radius:6px; font-family:monospace; letter-spacing:0.02em;">{{ mcp_api_key[:8] }}...{{ mcp_api_key[-6:] }}</code>
+                                <button onclick="navigator.clipboard.writeText('{{ mcp_api_key }}');toast('API key copied!')" style="background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:6px; padding:0.25rem 0.5rem; color:var(--text-2); cursor:pointer; font-size:0.65rem;">Copy</button>
+                            </div>
+                            {% else %}
+                            <p style="font-size:0.72rem; color:var(--text-3);">No API key yet — generate one to use the MCP server</p>
+                            {% endif %}
+                        </div>
+                        <button onclick="generateApiKey()" class="btn btn-brand" style="padding:0.5rem 1rem; font-size:0.78rem;" id="genKeyBtn">
+                            {{ "Regenerate Key" if mcp_api_key else "Generate API Key" }}
+                        </button>
                     </div>
-                    <p class="help-text" style="margin-top:0.4rem;">Header: <code style="color:var(--accent-2);">X-API-Key: your-key</code> &nbsp;&bull;&nbsp; Body: <code style="color:var(--accent-2);">{"tweet_text": "...", "linkedin_text": "..."}</code></p>
                 </div>
 
                 <!-- MCP Config -->
@@ -778,37 +787,58 @@
       <span style="color:var(--text-2);">"args"</span>: [<span style="color:var(--green);">"/path/to/Social-agents/mcp_server.py"</span>],
       <span style="color:var(--text-2);">"env"</span>: {
         <span style="color:var(--text-2);">"SOCIAL_AGENTS_URL"</span>: <span style="color:var(--green);">"{{ request.url.scheme }}://{{ request.url.netloc }}"</span>,
-        <span style="color:var(--text-2);">"SOCIAL_AGENTS_API_KEY"</span>: <span style="color:var(--yellow);">"your-api-key"</span>
+        <span style="color:var(--text-2);">"SOCIAL_AGENTS_API_KEY"</span>: <span style="color:var(--yellow);">"{{ mcp_api_key or 'generate-key-above' }}"</span>
       }
     }
   }
 }</div>
-                    <p class="help-text" style="margin-top:0.4rem;">
-                        Install: <code style="color:var(--accent-2);">pip install mcp httpx</code> &nbsp;&bull;&nbsp;
-                        Download <code style="color:var(--accent-2);">mcp_server.py</code> from the repo
-                    </p>
+                    <div style="display:flex; align-items:center; gap:0.75rem; margin-top:0.4rem; flex-wrap:wrap;">
+                        <button onclick="var t=document.getElementById('mcpSnippet').textContent;navigator.clipboard.writeText(t);toast('Config copied!')" style="background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:6px; padding:0.3rem 0.6rem; color:var(--text-2); cursor:pointer; font-size:0.68rem;">Copy Config</button>
+                        <p class="help-text" style="margin:0;">Install: <code style="color:var(--accent-2);">pip install mcp httpx</code> &nbsp;&bull;&nbsp; <a href="https://github.com/DevanshuBrahmbhatt/Social-agents" target="_blank">Download mcp_server.py</a></p>
+                    </div>
+                </div>
+
+                <!-- REST API -->
+                <div style="margin-bottom:1.5rem;">
+                    <p class="label">REST API Endpoints</p>
+                    <div style="display:grid; gap:0.4rem;">
+                        <div style="background:rgba(0,0,0,0.3); border-radius:8px; padding:0.5rem 0.75rem; font-family:monospace; font-size:0.72rem;">
+                            <span style="color:var(--green);">POST</span> <span style="color:var(--accent);">/api/external-post</span> <span style="color:var(--text-3);">— post pre-written content</span>
+                        </div>
+                        <div style="background:rgba(0,0,0,0.3); border-radius:8px; padding:0.5rem 0.75rem; font-family:monospace; font-size:0.72rem;">
+                            <span style="color:var(--green);">POST</span> <span style="color:var(--accent);">/api/generate-and-post</span> <span style="color:var(--text-3);">— AI generates &amp; posts</span>
+                        </div>
+                    </div>
+                    <p class="help-text" style="margin-top:0.35rem;">Header: <code style="color:var(--accent-2);">X-API-Key: your-key</code></p>
                 </div>
 
                 <!-- Available Tools -->
                 <div>
                     <p class="label">Available MCP Tools</p>
-                    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:0.5rem;">
+                    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:0.5rem;">
                         <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px; padding:0.6rem 0.75rem;">
-                            <span style="font-size:0.78rem; font-weight:600; color:var(--accent);">post_content</span>
-                            <p style="font-size:0.68rem; color:var(--text-3); margin-top:0.15rem;">Post to Twitter + LinkedIn with tracking metadata</p>
+                            <span style="font-size:0.75rem; font-weight:600; color:var(--accent);">post_content</span>
+                            <p style="font-size:0.65rem; color:var(--text-3); margin-top:0.15rem;">Post to Twitter + LinkedIn with prompt overrides</p>
                         </div>
                         <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px; padding:0.6rem 0.75rem;">
-                            <span style="font-size:0.78rem; font-weight:600; color:var(--accent);">post_tweet</span>
-                            <p style="font-size:0.68rem; color:var(--text-3); margin-top:0.15rem;">Quick tweet (max 280 chars)</p>
+                            <span style="font-size:0.75rem; font-weight:600; color:var(--accent);">post_tweet</span>
+                            <p style="font-size:0.65rem; color:var(--text-3); margin-top:0.15rem;">Quick tweet (max 280 chars)</p>
                         </div>
                         <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px; padding:0.6rem 0.75rem;">
-                            <span style="font-size:0.78rem; font-weight:600; color:var(--accent);">post_to_all</span>
-                            <p style="font-size:0.68rem; color:var(--text-3); margin-top:0.15rem;">Post to both Twitter and LinkedIn at once</p>
+                            <span style="font-size:0.75rem; font-weight:600; color:var(--accent);">post_to_all</span>
+                            <p style="font-size:0.65rem; color:var(--text-3); margin-top:0.15rem;">Post to both platforms at once</p>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px; padding:0.6rem 0.75rem;">
+                            <span style="font-size:0.75rem; font-weight:600; color:var(--accent);">generate_and_post</span>
+                            <p style="font-size:0.65rem; color:var(--text-3); margin-top:0.15rem;">AI picks story + generates + posts</p>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px; padding:0.6rem 0.75rem;">
+                            <span style="font-size:0.75rem; font-weight:600; color:var(--accent);">generate_preview</span>
+                            <p style="font-size:0.65rem; color:var(--text-3); margin-top:0.15rem;">Preview without posting</p>
                         </div>
                     </div>
                 </div>
             </div>
-            {% endif %}
 
             <!-- ══ POST HISTORY ══ -->
             <div class="glass fade-up">
@@ -876,6 +906,23 @@
             el.textContent = message;
             container.appendChild(el);
             setTimeout(() => { el.classList.add('toast-exit'); setTimeout(() => el.remove(), 300); }, 4000);
+        }
+
+        // ── Generate API Key ──
+        async function generateApiKey() {
+            const btn = document.getElementById('genKeyBtn');
+            btn.textContent = 'Generating...'; btn.disabled = true;
+            try {
+                const resp = await fetch('/api/generate-api-key', { method: 'POST' });
+                if (resp.status === 401) { window.location = '/login'; return; }
+                const data = await resp.json();
+                if (data.error) { toast(data.error, 'error'); }
+                else {
+                    toast('API key generated! Reload page to see it in MCP config.');
+                    setTimeout(() => location.reload(), 1500);
+                }
+            } catch (e) { toast('Failed: ' + e.message, 'error'); }
+            btn.textContent = 'Regenerate Key'; btn.disabled = false;
         }
 
         // ── Agent Start / Stop ──

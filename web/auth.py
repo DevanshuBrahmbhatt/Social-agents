@@ -255,7 +255,7 @@ async def twitter_login_callback(request: Request):
             db_session.close()
 
         # Set session cookie and redirect to dashboard
-        response = RedirectResponse(url="/", status_code=303)
+        response = RedirectResponse(url="/dashboard", status_code=303)
         create_session_cookie(response, user_id)
         return response
 
@@ -299,7 +299,7 @@ async def owner_login(request: Request):
         if not owner:
             return RedirectResponse(url="/login?error=No+owner+user+found", status_code=303)
 
-        response = RedirectResponse(url="/", status_code=303)
+        response = RedirectResponse(url="/dashboard", status_code=303)
         create_session_cookie(response, owner.id)
         return response
     finally:
@@ -377,16 +377,16 @@ async def linkedin_connect_callback(request: Request):
     if error:
         error_desc = request.query_params.get("error_description", error)
         return RedirectResponse(
-            url=f"/?error=LinkedIn+auth+failed:+{urllib.parse.quote(error_desc)}",
+            url=f"/dashboard?error=LinkedIn+auth+failed:+{urllib.parse.quote(error_desc)}",
             status_code=303,
         )
 
     if not code or not state:
-        return RedirectResponse(url="/?error=Invalid+LinkedIn+callback", status_code=303)
+        return RedirectResponse(url="/dashboard?error=Invalid+LinkedIn+callback", status_code=303)
 
     state_data = _linkedin_state_store.pop(state, None)
     if not state_data:
-        return RedirectResponse(url="/?error=Invalid+or+expired+LinkedIn+state", status_code=303)
+        return RedirectResponse(url="/dashboard?error=Invalid+or+expired+LinkedIn+state", status_code=303)
 
     user_id = state_data["user_id"]
 
@@ -410,7 +410,7 @@ async def linkedin_connect_callback(request: Request):
             log.error(f"LinkedIn token exchange failed: {token_data}")
             error_desc = token_data.get("error_description", "Token exchange failed")
             return RedirectResponse(
-                url=f"/?error={urllib.parse.quote(error_desc)}",
+                url=f"/dashboard?error={urllib.parse.quote(error_desc)}",
                 status_code=303,
             )
 
@@ -435,7 +435,7 @@ async def linkedin_connect_callback(request: Request):
 
         if not person_urn_id:
             log.error(f"Failed to get LinkedIn user info: {userinfo}")
-            return RedirectResponse(url="/?error=Failed+to+get+LinkedIn+profile", status_code=303)
+            return RedirectResponse(url="/dashboard?error=Failed+to+get+LinkedIn+profile", status_code=303)
 
         # Store on existing user
         db_session = SessionLocal()
@@ -450,16 +450,16 @@ async def linkedin_connect_callback(request: Request):
                 db_session.commit()
                 log.info(f"LinkedIn connected for user {user_id}: {linkedin_name}")
             else:
-                return RedirectResponse(url="/?error=User+not+found", status_code=303)
+                return RedirectResponse(url="/dashboard?error=User+not+found", status_code=303)
         finally:
             db_session.close()
 
-        return RedirectResponse(url="/?success=LinkedIn+connected!", status_code=303)
+        return RedirectResponse(url="/dashboard?success=LinkedIn+connected!", status_code=303)
 
     except Exception as e:
         log.error(f"LinkedIn OAuth callback error: {e}")
         return RedirectResponse(
-            url=f"/?error={urllib.parse.quote(str(e)[:100])}",
+            url=f"/dashboard?error={urllib.parse.quote(str(e)[:100])}",
             status_code=303,
         )
 
@@ -484,7 +484,7 @@ async def linkedin_disconnect(request: Request):
     finally:
         db_session.close()
 
-    return RedirectResponse(url="/", status_code=303)
+    return RedirectResponse(url="/dashboard", status_code=303)
 
 
 def refresh_linkedin_token_sync(user_id: int) -> bool:
