@@ -1,3 +1,7 @@
 twitter.dagent.shop {
     reverse_proxy tweetagent:8000
 }
+
+research.dagent.shop {
+    reverse_proxy researchagent:8000
+}

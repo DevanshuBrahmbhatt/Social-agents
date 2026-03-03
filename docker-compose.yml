@@ -8,6 +8,8 @@ services:
     volumes:
       - ./db.sqlite3:/app/db.sqlite3
       - ./charts:/app/charts
+    networks:
+      - dagent-network
     restart: unless-stopped
 
   caddy:
@@ -21,8 +23,14 @@ services:
       - caddy_config:/config
     depends_on:
       - tweetagent
+    networks:
+      - dagent-network
     restart: unless-stopped
 
 volumes:
   caddy_data:
   caddy_config:
+
+networks:
+  dagent-network:
+    external: true
